@@ -11,6 +11,7 @@ import AdminView from './components/AdminView';
 
 export default function App() {
   const [campaigns, setCampaigns] = useState(null); // { [id]: camp } | null enquanto carrega
+  const [loadError, setLoadError] = useState(null);
   const [session, setSession] = useState(null);     // {type:'comercial'|'gestor', campaignId, nome} | {type:'admin'}
   const [landingCampaignId, setLandingCampaignId] = useState(null);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -22,12 +23,29 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const loaded = await Promise.all(CAMPAIGNS.map(c => loadCampaign(c.id)));
-      const map = {};
-      CAMPAIGNS.forEach((c, i) => { map[c.id] = loaded[i]; });
-      setCampaigns(map);
+      try {
+        const loaded = await Promise.all(CAMPAIGNS.map(c => loadCampaign(c.id)));
+        const map = {};
+        CAMPAIGNS.forEach((c, i) => { map[c.id] = loaded[i]; });
+        setCampaigns(map);
+      } catch (err) {
+        console.error(err);
+        setLoadError(err.message || String(err));
+      }
     })();
   }, []);
+
+  if (loadError) {
+    return (
+      <div className="center-wrap">
+        <div className="card">
+          <h2>Não consegui carregar os dados</h2>
+          <div className="error-msg" style={{ whiteSpace: 'pre-wrap' }}>{loadError}</div>
+          <div className="hint">Copie essa mensagem e envie para quem está configurando o sistema.</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!campaigns) {
     return (
