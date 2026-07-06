@@ -53,7 +53,6 @@ export default function AdminView({ campaigns, onReloadCampaign }) {
   );
 }
 
-/* ---------------- Importar ---------------- */
 function ImportarTab({ camp, onReloadCampaign }) {
   const isMDTR = camp.id === 'geradores-demanda';
   const [objStatus, setObjStatus] = useState(null);
@@ -78,7 +77,7 @@ function ImportarTab({ camp, onReloadCampaign }) {
       setObjStatus({ type: 'ok', text: `✓ ${peopleFound} pessoas, ${rowsFound} linhas de produto carregadas em ${camp.label}` });
     } catch (err) {
       console.error(err);
-      setObjStatus({ type: 'bad', text: 'Erro ao ler o arquivo. Confira se é um .xlsx válido.' });
+      setObjStatus({ type: 'bad', text: `Erro ao salvar: ${err.message || err}` });
     }
   };
 
@@ -96,7 +95,7 @@ function ImportarTab({ camp, onReloadCampaign }) {
       setRealStatus({ type: 'ok', text: `✓ ${Object.keys(result.data).length} pessoas, ${result.rowsFound} linhas processadas em ${camp.label}` });
     } catch (err) {
       console.error(err);
-      setRealStatus({ type: 'bad', text: 'Erro ao ler o arquivo. Confira se é um .xlsx válido.' });
+      setRealStatus({ type: 'bad', text: `Erro ao salvar: ${err.message || err}` });
     }
   };
 
@@ -149,7 +148,6 @@ function ImportarTab({ camp, onReloadCampaign }) {
   );
 }
 
-/* ---------------- Apurações ---------------- */
 function ApuracoesTab({ camp, onReloadCampaign }) {
   const [filter, setFilter] = useState('');
   const all = computeAllIndividualStats(camp);
@@ -205,7 +203,6 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
   );
 }
 
-/* ---------------- Ranking ---------------- */
 function RankingTab({ camp, onReloadCampaign }) {
   const ranking = computeRanking(camp);
   const gestorRanking = computeGestorRanking(camp);
@@ -289,7 +286,6 @@ function RankingTab({ camp, onReloadCampaign }) {
   );
 }
 
-/* ---------------- Configurações ---------------- */
 function ConfigTab({ camp, onReloadCampaign }) {
   const [campaignName, setCampaignName] = useState(camp.campaignName || camp.label);
 
