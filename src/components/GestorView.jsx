@@ -1,4 +1,5 @@
 // src/components/GestorView.jsx
+import { useState, Fragment } from 'react';
 import { computeGestorStats, computeRanking, computeGestorRanking, formatBRL, formatPct } from '../lib/stats';
 
 export default function GestorView({ camp, gestorNome }) {
@@ -7,6 +8,7 @@ export default function GestorView({ camp, gestorNome }) {
   const gestorRanking = camp.rankingVisibleGestores ? computeGestorRanking(camp) : null;
   const memberNames = stats.members;
   const hasSelfAccount = stats.memberStats.some(ms => ms.isSelfAccount);
+  const [expandido, setExpandido] = useState(null); // nome do consultor com detalhe aberto
 
   return (
     <div className="wrap">
@@ -55,19 +57,47 @@ export default function GestorView({ camp, gestorNome }) {
       <div className="card">
         <h2>Consultores da equipe</h2>
         {hasSelfAccount && <h3>Inclui o atendimento direto do próprio gestor, já somado no total acima.</h3>}
+        <div className="hint" style={{ marginTop: -6 }}>Clique num consultor para ver o realizado por família dele.</div>
         <div className="table-scroll">
         <table>
           <thead><tr><th>Nome</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th></tr></thead>
           <tbody>
-            {stats.memberStats.length ? stats.memberStats.map(ms => (
-              <tr key={ms.nome} style={ms.isSelfAccount ? { background: 'var(--rosa)' } : undefined}>
-                <td>{ms.nome}{ms.isSelfAccount && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Atendimento direto</span>}</td>
-                <td className="num">{formatBRL(ms.totalObj)}</td>
-                <td className="num">{formatBRL(ms.totalRealizado)}</td>
-                <td className="num">{formatPct(ms.totalCob)}</td>
-                <td className="num">{ms.count100}/{ms.coreCount}</td>
-              </tr>
-            )) : <tr><td colSpan="5" className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
+            {stats.memberStats.length ? stats.memberStats.map(ms => {
+              const isOpen = expandido === ms.nome;
+              return (
+                <Fragment key={ms.nome}>
+                  <tr
+                    onClick={() => setExpandido(isOpen ? null : ms.nome)}
+                    style={{ cursor: 'pointer', ...(ms.isSelfAccount ? { background: 'var(--rosa)' } : {}) }}
+                  >
+                    <td>{isOpen ? '▾' : '▸'} {ms.nome}{ms.isSelfAccount && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Atendimento direto</span>}</td>
+                    <td className="num">{formatBRL(ms.totalObj)}</td>
+                    <td className="num">{formatBRL(ms.totalRealizado)}</td>
+                    <td className="num">{formatPct(ms.totalCob)}</td>
+                    <td className="num">{ms.count100}/{ms.coreCount}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan="5" style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
+                        <table>
+                          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th></tr></thead>
+                          <tbody>
+                            {ms.produtos.length ? ms.produtos.map(p => (
+                              <tr key={p.key}>
+                                <td>{p.label}</td>
+                                <td className="num">{formatBRL(p.obj)}</td>
+                                <td className="num">{formatBRL(p.realizado)}</td>
+                                <td className="num">{formatPct(p.cob)}</td>
+                              </tr>
+                            )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            }) : <tr><td colSpan="5" className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
           </tbody>
         </table>
         </div>
