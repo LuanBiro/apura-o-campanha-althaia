@@ -26,7 +26,7 @@ export default function GestorView({ camp, gestorNome }) {
 
       <div className="card">
         <h2>Produtos da campanha (soma da equipe)</h2>
-        <div className="table-scroll">
+        <div className="table-scroll-sticky">
         <table>
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
@@ -79,6 +79,7 @@ export default function GestorView({ camp, gestorNome }) {
                   {isOpen && (
                     <tr>
                       <td colSpan="5" style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
+                        <div className="table-scroll-sticky">
                         <table>
                           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th></tr></thead>
                           <tbody>
@@ -92,6 +93,7 @@ export default function GestorView({ camp, gestorNome }) {
                             )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
                           </tbody>
                         </table>
+                        </div>
                       </td>
                     </tr>
                   )}
