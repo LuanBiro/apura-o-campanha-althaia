@@ -24,6 +24,7 @@ export default function GestorView({ camp, gestorNome }) {
 
       <div className="card">
         <h2>Produtos da campanha (soma da equipe)</h2>
+        <div className="table-scroll">
         <table>
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
@@ -43,6 +44,7 @@ export default function GestorView({ camp, gestorNome }) {
             }) : <tr><td colSpan="5" className="empty">Nenhum produto encontrado para esta equipe.</td></tr>}
           </tbody>
         </table>
+        </div>
         <div style={{ marginTop: 16 }} className="no-print">
           <button className="btn btn-small btn-secondary" style={{ width: 'auto' }} onClick={() => window.print()}>
             Imprimir / salvar PDF
@@ -53,6 +55,7 @@ export default function GestorView({ camp, gestorNome }) {
       <div className="card">
         <h2>Consultores da equipe</h2>
         {hasSelfAccount && <h3>Inclui o atendimento direto do próprio gestor, já somado no total acima.</h3>}
+        <div className="table-scroll">
         <table>
           <thead><tr><th>Nome</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th></tr></thead>
           <tbody>
@@ -67,6 +70,7 @@ export default function GestorView({ camp, gestorNome }) {
             )) : <tr><td colSpan="5" className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
           </tbody>
         </table>
+        </div>
       </div>
 
       {gestorRanking ? (
@@ -100,20 +104,4 @@ export default function GestorView({ camp, gestorNome }) {
             const pos = i + 1;
             const isMyTeam = memberNames.indexOf(r.nome) > -1;
             return (
-              <div key={r.nome} className={`rank-item ${isMyTeam ? 'me' : ''} ${pos <= 3 ? 'top3' : ''}`}>
-                <div className="rank-pos">{pos}</div>
-                <div style={{ flex: 1 }}>
-                  <div className="rank-name">{r.nome}{isMyTeam ? ' (minha equipe)' : ''}</div>
-                  <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta</div>
-                </div>
-                <div className="rank-cov">{formatPct(r.totalCob)}</div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="card no-print"><div className="empty">O ranking de consultores desta campanha ainda não foi liberado pelo administrador.</div></div>
-      )}
-    </div>
-  );
-}
+              <div key={r.nome} className={
