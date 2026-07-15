@@ -104,4 +104,20 @@ export default function GestorView({ camp, gestorNome }) {
             const pos = i + 1;
             const isMyTeam = memberNames.indexOf(r.nome) > -1;
             return (
-              <div key={r.nome} className={
+              <div key={r.nome} className={`rank-item ${isMyTeam ? 'me' : ''} ${pos <= 3 ? 'top3' : ''}`}>
+                <div className="rank-pos">{pos}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="rank-name">{r.nome}{isMyTeam ? ' (minha equipe)' : ''}</div>
+                  <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta</div>
+                </div>
+                <div className="rank-cov">{formatPct(r.totalCob)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card no-print"><div className="empty">O ranking de consultores desta campanha ainda não foi liberado pelo administrador.</div></div>
+      )}
+    </div>
+  );
+}
