@@ -22,7 +22,7 @@ export default function ComercialView({ camp, nome }) {
 
       <div className="card">
         <h2>Produtos da campanha</h2>
-        <div className="table-scroll">
+        <div className="table-scroll-sticky">
         <table>
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
