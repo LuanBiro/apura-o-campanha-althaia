@@ -22,6 +22,7 @@ export default function ComercialView({ camp, nome }) {
 
       <div className="card">
         <h2>Produtos da campanha</h2>
+        <div className="table-scroll">
         <table>
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
@@ -41,6 +42,7 @@ export default function ComercialView({ camp, nome }) {
             }) : <tr><td colSpan="5" className="empty">Nenhum produto encontrado para este nome.</td></tr>}
           </tbody>
         </table>
+        </div>
         <div style={{ marginTop: 16 }} className="no-print">
           <button className="btn btn-small btn-secondary" style={{ width: 'auto' }} onClick={() => window.print()}>
             Imprimir / salvar PDF
