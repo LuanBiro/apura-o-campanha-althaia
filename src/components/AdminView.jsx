@@ -45,10 +45,10 @@ export default function AdminView({ campaigns, onReloadCampaign }) {
         <button className={`tab-btn ${adminTab === 'config' ? 'active' : ''}`} onClick={() => setAdminTab('config')}>Configurações</button>
       </div>
 
-      {adminTab === 'importar' && <ImportarTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'apuracoes' && <ApuracoesTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'ranking' && <RankingTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'config' && <ConfigTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'importar' && <ImportarTab camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'apuracoes' && <ApuracoesTab camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'ranking' && <RankingTab camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'config' && <ConfigTab camp={camp} onReloadCampaign={onReloadCampaign} />}
     </div>
   );
 }
@@ -100,9 +100,10 @@ function ImportarTab({ camp, onReloadCampaign }) {
     }
   };
 
+  const isVarejo = camp.id === 'varejo';
   const realHint = isMDTR
     ? 'Formato MDTR desta campanha: colunas PPP (valor realizado), Família e Ger. Demanda (código e nome juntos, ex: "111199 - DANILO DE AZEVEDO SANTIAGO"). Não tem coluna de gestor — essa campanha é sempre apurada por pessoa. O texto da Família precisa ser igual ao da planilha de OBJ.'
-    : 'Colunas esperadas: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL. A Família deve vir já separada por dosagem quando necessário (ex: "ROSUVASTATINA 40MG" e "ROSUVASTATINA 5/10/20" como linhas distintas) — o texto precisa ser igual ao que está na planilha de OBJ. A coluna Supervisor Nome é usada para montar a visão consolidada de cada gestor automaticamente.';
+    : `Colunas esperadas: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL${isVarejo ? ', CNPJ Raiz' : ''}. A Família deve vir já separada por dosagem quando necessário (ex: "ROSUVASTATINA 40MG" e "ROSUVASTATINA 5/10/20" como linhas distintas) — o texto precisa ser igual ao que está na planilha de OBJ. A coluna Supervisor Nome é usada para montar a visão consolidada de cada gestor automaticamente.${isVarejo ? ' A coluna CNPJ Raiz é usada para calcular a positivação (quantidade de clientes distintos que compraram cada produto) — essa métrica só aparece nesta campanha.' : ''}`;
 
   return (
     <>
@@ -156,6 +157,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
   const teamMap = computeTeamMap(camp);
   const f = filter.trim().toUpperCase();
   const filtered = f ? all.filter(r => r.nome.indexOf(f) > -1) : all;
+  const showPositivacao = camp.id === 'varejo';
 
   if (!Object.keys(camp.objData).length) {
     return <div className="card"><div className="empty">Importe a base de OBJ para ver as apurações por pessoa.</div></div>;
@@ -175,7 +177,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
       <div className="table-scroll">
       <table>
         <thead>
-          <tr><th>Nome</th><th>Reporta para</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th><th>Acesso</th></tr>
+          <tr><th>Nome</th><th>Reporta para</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th className="num">Produtos 100%</th><th>Acesso</th></tr>
         </thead>
         <tbody>
           {filtered.length ? filtered.map(r => {
@@ -187,6 +189,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
                 <td>{camp.supervisorMap[r.nome] || '—'}</td>
                 <td className="num">{formatBRL(r.totalObj)}</td>
                 <td className="num">{formatBRL(r.totalRealizado)}</td>
+                {showPositivacao && <td className="num">{r.positivacaoTotal}</td>}
                 <td className="num">{formatPct(r.totalCob)}</td>
                 <td className="num">{r.count100}/{r.coreCount}</td>
                 <td>
@@ -196,7 +199,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
                 </td>
               </tr>
             );
-          }) : <tr><td colSpan="7" className="empty">Nenhum resultado.</td></tr>}
+          }) : <tr><td colSpan={showPositivacao ? 8 : 7} className="empty">Nenhum resultado.</td></tr>}
         </tbody>
       </table>
       </div>
