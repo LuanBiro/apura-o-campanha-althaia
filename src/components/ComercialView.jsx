@@ -29,6 +29,18 @@ export default function ComercialView({ camp, nome }) {
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
             {stats.produtos.length ? stats.produtos.map(p => {
+              if (p.isUnclassified) {
+                return (
+                  <tr key={p.key} style={{ fontStyle: 'italic', color: 'var(--muted)' }}>
+                    <td>{p.label}</td>
+                    <td className="num">—</td>
+                    <td className="num">{formatBRL(p.realizado)}</td>
+                    {showPositivacao && <td className="num">{p.positivacao}</td>}
+                    <td className="num">—</td>
+                    <td><span className="pill pill-warn">Verificar dosagem</span></td>
+                  </tr>
+                );
+              }
               let pillClass = 'pill-bad', pillLabel = 'Abaixo';
               if (p.cob >= 100) { pillClass = 'pill-ok'; pillLabel = 'Atingido'; }
               else if (p.cob >= 70) { pillClass = 'pill-warn'; pillLabel = 'Próximo'; }
