@@ -72,12 +72,34 @@ export function parseObjWorkbook(workbook) {
       const c1 = String(row[1] || '').trim();
       if (!c0) continue;
       const c1Upper = c1.toUpperCase();
-      const isHeaderRow = c1Upper === 'OBJ' || c1Upper.indexOf('OBJ') === 0;
-      const isTotalRow = c0.toUpperCase() === 'TOTAL' || c0.toUpperCase() === 'TOTAL GERAL';
+      const c0Upper = c0.toUpperCase();
+      const isTotalRow = c0Upper === 'TOTAL' || c0Upper === 'TOTAL GERAL';
 
-      if (isHeaderRow) {
+      // Formato A: nome e "OBJ" na mesma linha (ex: "AMANDA SANTANNA | OBJ | REALIZADO | COB.%")
+      const isHeaderSameLine = c1Upper === 'OBJ' || c1Upper.indexOf('OBJ') === 0;
+
+      // Formato B: nome sozinho numa linha, com "FAMÍLIA | OBJ | COB.%" na linha seguinte
+      let isHeaderNextLine = false;
+      if (!isHeaderSameLine && !c1 && !isTotalRow) {
+        const nextRow = rows[i + 1];
+        if (nextRow) {
+          const n0 = String(nextRow[0] || '').trim().toUpperCase();
+          const n1 = String(nextRow[1] || '').trim().toUpperCase();
+          if (n0.indexOf('FAM') === 0 || n1 === 'OBJ' || n1.indexOf('OBJ') === 0) {
+            isHeaderNextLine = true;
+          }
+        }
+      }
+
+      if (isHeaderSameLine) {
         currentPerson = extractCodeAndName(c0).nome;
         if (!result[currentPerson]) { result[currentPerson] = {}; peopleFound++; }
+        continue;
+      }
+      if (isHeaderNextLine) {
+        currentPerson = extractCodeAndName(c0).nome;
+        if (!result[currentPerson]) { result[currentPerson] = {}; peopleFound++; }
+        i++; // pula a linha de sub-cabeçalho "FAMÍLIA | OBJ | COB.%"
         continue;
       }
       if (isTotalRow) { currentPerson = null; continue; }
