@@ -30,9 +30,11 @@ export function computeConsultorStats(camp, nome) {
 
   const produtos = Object.keys(objBlock).map(key => {
     const obj = objBlock[key].obj || 0;
-    const realizado = realBlock[key] || 0;
+    const realEntry = realBlock[key];
+    const realizado = realEntry ? realEntry.valor : 0;
+    const cnpjs = realEntry ? (realEntry.cnpjs || []) : [];
     const cob = obj > 0 ? (realizado / obj * 100) : 0;
-    return { key, label: objBlock[key].label, obj, realizado, cob };
+    return { key, label: objBlock[key].label, obj, realizado, cob, cnpjs, positivacao: cnpjs.length };
   });
 
   produtos.sort((a, b) => a.label.localeCompare(b.label));
@@ -40,8 +42,11 @@ export function computeConsultorStats(camp, nome) {
   const totalRealizado = produtos.reduce((s, p) => s + p.realizado, 0);
   const totalCob = totalObj > 0 ? (totalRealizado / totalObj * 100) : 0;
   const count100 = produtos.filter(p => p.cob >= 100).length;
+  // positivação total da pessoa: união de CNPJs distintos em qualquer produto (um cliente pode contar 1x mesmo comprando vários produtos)
+  const cnpjsUnicos = new Set();
+  produtos.forEach(p => p.cnpjs.forEach(c => cnpjsUnicos.add(c)));
 
-  return { nome, produtos, coreCount: produtos.length, totalObj, totalRealizado, totalCob, count100 };
+  return { nome, produtos, coreCount: produtos.length, totalObj, totalRealizado, totalCob, count100, positivacaoTotal: cnpjsUnicos.size };
 }
 
 export function computeGestorStats(camp, gestorNome) {
@@ -60,16 +65,17 @@ export function computeGestorStats(camp, gestorNome) {
   const produtoAgg = {};
   memberStats.forEach(ms => {
     ms.produtos.forEach(p => {
-      if (!produtoAgg[p.key]) produtoAgg[p.key] = { label: p.label, obj: 0, realizado: 0 };
+      if (!produtoAgg[p.key]) produtoAgg[p.key] = { label: p.label, obj: 0, realizado: 0, cnpjSet: new Set() };
       produtoAgg[p.key].obj += p.obj;
       produtoAgg[p.key].realizado += p.realizado;
+      p.cnpjs.forEach(c => produtoAgg[p.key].cnpjSet.add(c));
     });
   });
 
   const produtos = Object.keys(produtoAgg).map(key => {
     const o = produtoAgg[key];
     const cob = o.obj > 0 ? (o.realizado / o.obj * 100) : 0;
-    return { key, label: o.label, obj: o.obj, realizado: o.realizado, cob };
+    return { key, label: o.label, obj: o.obj, realizado: o.realizado, cob, positivacao: o.cnpjSet.size };
   });
 
   produtos.sort((a, b) => a.label.localeCompare(b.label));
@@ -78,8 +84,11 @@ export function computeGestorStats(camp, gestorNome) {
   const totalCob = totalObj > 0 ? (totalRealizado / totalObj * 100) : 0;
   const count100 = produtos.filter(p => p.cob >= 100).length;
   memberStats.sort((a, b) => b.totalCob - a.totalCob);
+  // positivação total da equipe: união de CNPJs distintos em qualquer membro/produto
+  const cnpjsUnicosEquipe = new Set();
+  memberStats.forEach(ms => ms.produtos.forEach(p => p.cnpjs.forEach(c => cnpjsUnicosEquipe.add(c))));
 
-  return { gestorNome, members, memberStats, produtos, coreCount: produtos.length, totalObj, totalRealizado, totalCob, count100 };
+  return { gestorNome, members, memberStats, produtos, coreCount: produtos.length, totalObj, totalRealizado, totalCob, count100, positivacaoTotal: cnpjsUnicosEquipe.size };
 }
 
 // Ranking de consultores: exclui quem é gestor de equipe.
