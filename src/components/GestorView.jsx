@@ -9,6 +9,7 @@ export default function GestorView({ camp, gestorNome }) {
   const memberNames = stats.members;
   const hasSelfAccount = stats.memberStats.some(ms => ms.isSelfAccount);
   const [expandido, setExpandido] = useState(null); // nome do consultor com detalhe aberto
+  const showPositivacao = camp.id === 'varejo';
 
   return (
     <div className="wrap">
@@ -20,6 +21,7 @@ export default function GestorView({ camp, gestorNome }) {
       <div className="stat-row">
         <div className="stat-box"><div className="label">OBJ da equipe</div><div className="value">{formatBRL(stats.totalObj)}</div></div>
         <div className="stat-box"><div className="label">Realizado da equipe</div><div className="value">{formatBRL(stats.totalRealizado)}</div></div>
+        {showPositivacao && <div className="stat-box"><div className="label">Positivação da equipe</div><div className="value">{stats.positivacaoTotal}</div></div>}
         <div className="stat-box accent"><div className="label">Cobertura da equipe</div><div className="value">{formatPct(stats.totalCob)}</div></div>
         <div className="stat-box"><div className="label">Produtos 100%</div><div className="value">{stats.count100}/{stats.coreCount}</div></div>
       </div>
@@ -28,7 +30,7 @@ export default function GestorView({ camp, gestorNome }) {
         <h2>Produtos da campanha (soma da equipe)</h2>
         <div className="table-scroll-sticky">
         <table>
-          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
+          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
             {stats.produtos.length ? stats.produtos.map(p => {
               let pillClass = 'pill-bad', pillLabel = 'Abaixo';
@@ -39,11 +41,12 @@ export default function GestorView({ camp, gestorNome }) {
                   <td>{p.label}</td>
                   <td className="num">{formatBRL(p.obj)}</td>
                   <td className="num">{formatBRL(p.realizado)}</td>
+                  {showPositivacao && <td className="num">{p.positivacao}</td>}
                   <td className="num">{formatPct(p.cob)}</td>
                   <td><span className={`pill ${pillClass}`}>{pillLabel}</span></td>
                 </tr>
               );
-            }) : <tr><td colSpan="5" className="empty">Nenhum produto encontrado para esta equipe.</td></tr>}
+            }) : <tr><td colSpan={showPositivacao ? 6 : 5} className="empty">Nenhum produto encontrado para esta equipe.</td></tr>}
           </tbody>
         </table>
         </div>
@@ -60,7 +63,7 @@ export default function GestorView({ camp, gestorNome }) {
         <div className="hint" style={{ marginTop: -6 }}>Clique num consultor para ver o realizado por família dele.</div>
         <div className="table-scroll">
         <table>
-          <thead><tr><th>Nome</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th></tr></thead>
+          <thead><tr><th>Nome</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th className="num">Produtos 100%</th></tr></thead>
           <tbody>
             {stats.memberStats.length ? stats.memberStats.map(ms => {
               const isOpen = expandido === ms.nome;
@@ -73,24 +76,26 @@ export default function GestorView({ camp, gestorNome }) {
                     <td>{isOpen ? '▾' : '▸'} {ms.nome}{ms.isSelfAccount && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Atendimento direto</span>}</td>
                     <td className="num">{formatBRL(ms.totalObj)}</td>
                     <td className="num">{formatBRL(ms.totalRealizado)}</td>
+                    {showPositivacao && <td className="num">{ms.positivacaoTotal}</td>}
                     <td className="num">{formatPct(ms.totalCob)}</td>
                     <td className="num">{ms.count100}/{ms.coreCount}</td>
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan="5" style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
+                      <td colSpan={showPositivacao ? 6 : 5} style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
                         <div className="table-scroll-sticky">
                         <table>
-                          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th><th className="num">Cob. %</th></tr></thead>
+                          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th></tr></thead>
                           <tbody>
                             {ms.produtos.length ? ms.produtos.map(p => (
                               <tr key={p.key}>
                                 <td>{p.label}</td>
                                 <td className="num">{formatBRL(p.obj)}</td>
                                 <td className="num">{formatBRL(p.realizado)}</td>
+                                {showPositivacao && <td className="num">{p.positivacao}</td>}
                                 <td className="num">{formatPct(p.cob)}</td>
                               </tr>
-                            )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
+                            )) : <tr><td colSpan={showPositivacao ? 5 : 4} className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
                           </tbody>
                         </table>
                         </div>
@@ -99,7 +104,7 @@ export default function GestorView({ camp, gestorNome }) {
                   )}
                 </Fragment>
               );
-            }) : <tr><td colSpan="5" className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
+            }) : <tr><td colSpan={showPositivacao ? 6 : 5} className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
           </tbody>
         </table>
         </div>
