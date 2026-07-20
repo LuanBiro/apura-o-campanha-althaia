@@ -18,53 +18,70 @@ function check(result, contexto) {
   return result;
 }
 
+// O Supabase, por padrão, limita qualquer consulta a 1000 linhas — mesmo que
+// existam mais no banco. Isso busca em lotes de 1000 até não sobrar mais nada,
+// evitando que tabelas grandes (ex: milhares de CNPJs) fiquem cortadas pela metade.
+async function fetchAllRows(tableName, campaignId, selectCols = '*', orderCols = ['campaign_id']) {
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+  while (true) {
+    let query = supabase
+      .from(tableName)
+      .select(selectCols)
+      .eq('campaign_id', campaignId);
+    orderCols.forEach(col => { query = query.order(col, { ascending: true }); });
+    const page = await query.range(from, from + pageSize - 1);
+    check(page, `fetchAllRows: ${tableName}`);
+    const rows = page.data || [];
+    allRows = allRows.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return allRows;
+}
+
 // -----------------------------------------------------------------
 // Carrega tudo de uma campanha (equivalente ao antigo storeGet por campanha)
 // -----------------------------------------------------------------
 export async function loadCampaign(campaignId) {
-  const [campaignRow, objRows, realRows, cnpjRows, codigoRows, supervisorRows, authRows] = await Promise.all([
+  const [campaignRow, objRowsData, realRowsData, cnpjRowsData, codigoRowsData, supervisorRowsData, authRowsData] = await Promise.all([
     supabase.from('campaigns').select('*').eq('id', campaignId).single(),
-    supabase.from('obj_entries').select('*').eq('campaign_id', campaignId),
-    supabase.from('realizado_entries').select('*').eq('campaign_id', campaignId),
-    supabase.from('realizado_cnpjs').select('*').eq('campaign_id', campaignId),
-    supabase.from('codigo_map').select('*').eq('campaign_id', campaignId),
-    supabase.from('supervisor_map').select('*').eq('campaign_id', campaignId),
-    supabase.from('user_auth').select('nome, password_hash').eq('campaign_id', campaignId),
+    fetchAllRows('obj_entries', campaignId, '*', ['id']),
+    fetchAllRows('realizado_entries', campaignId, '*', ['id']),
+    fetchAllRows('realizado_cnpjs', campaignId, '*', ['nome', 'produto_key', 'cnpj_raiz']),
+    fetchAllRows('codigo_map', campaignId, '*', ['codigo']),
+    fetchAllRows('supervisor_map', campaignId, '*', ['nome']),
+    fetchAllRows('user_auth', campaignId, 'nome, password_hash', ['nome']),
   ]);
 
   check(campaignRow, 'loadCampaign: campaigns');
-  check(objRows, 'loadCampaign: obj_entries');
-  check(realRows, 'loadCampaign: realizado_entries');
-  check(cnpjRows, 'loadCampaign: realizado_cnpjs');
-  check(codigoRows, 'loadCampaign: codigo_map');
-  check(supervisorRows, 'loadCampaign: supervisor_map');
-  check(authRows, 'loadCampaign: user_auth');
 
   const objData = {};
-  (objRows.data || []).forEach(r => {
+  objRowsData.forEach(r => {
     if (!objData[r.nome]) objData[r.nome] = {};
     objData[r.nome][r.produto_key] = { label: r.produto_label, obj: Number(r.obj) };
   });
 
   const realizadoData = {};
-  (realRows.data || []).forEach(r => {
+  realRowsData.forEach(r => {
     if (!realizadoData[r.nome]) realizadoData[r.nome] = {};
     realizadoData[r.nome][r.produto_key] = { valor: Number(r.valor), cnpjs: [] };
   });
-  (cnpjRows.data || []).forEach(r => {
+  cnpjRowsData.forEach(r => {
     if (!realizadoData[r.nome]) realizadoData[r.nome] = {};
     if (!realizadoData[r.nome][r.produto_key]) realizadoData[r.nome][r.produto_key] = { valor: 0, cnpjs: [] };
     realizadoData[r.nome][r.produto_key].cnpjs.push(r.cnpj_raiz);
   });
 
   const codigoMap = {};
-  (codigoRows.data || []).forEach(r => { codigoMap[r.codigo] = r.nome; });
+  codigoRowsData.forEach(r => { codigoMap[r.codigo] = r.nome; });
 
   const supervisorMap = {};
-  (supervisorRows.data || []).forEach(r => { supervisorMap[r.nome] = r.supervisor_nome; });
+  supervisorRowsData.forEach(r => { supervisorMap[r.nome] = r.supervisor_nome; });
 
   const userAuth = {};
-  (authRows.data || []).forEach(r => { userAuth[r.nome] = { passwordHash: r.password_hash }; });
+  authRowsData.forEach(r => { userAuth[r.nome] = { passwordHash: r.password_hash }; });
 
   const c = campaignRow.data || {};
   return {
