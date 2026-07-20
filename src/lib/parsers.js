@@ -117,15 +117,19 @@ export function parseRealizadoWorkbook(workbook) {
   if (!rows.length) return { data: {}, codigoMap: {}, supervisorMap: {}, rowsFound: 0, error: 'Planilha vazia' };
 
   const header = rows[0].map(h => String(h).toLowerCase());
-  const idxCod = header.findIndex(h => h.indexOf('cod') > -1 && h.indexOf('artigo') === -1);
+  const idxCod = header.findIndex(h => h.indexOf('cod') > -1 && h.indexOf('artigo') === -1 && h.indexOf('cnpj') === -1);
   const idxNome = header.findIndex(h => h.indexOf('nome') > -1 && h.indexOf('supervisor') === -1);
   const idxSupervisor = header.findIndex(h => h.indexOf('supervisor') > -1);
   const idxFamilia = header.findIndex(h => h.indexOf('fam') > -1);
   const idxValor = header.findIndex(h => h.indexOf('fat') > -1 || h.indexOf('realizado') > -1 || h.indexOf('valor') > -1);
+  const idxCnpjRaiz = header.findIndex(h => h.indexOf('cnpj') > -1);
 
   if (idxNome === -1 || idxFamilia === -1 || idxValor === -1) {
     return { data: {}, codigoMap: {}, supervisorMap: {}, rowsFound: 0, error: 'Não encontrei as colunas esperadas (Consultor Nome, Família, Fat+OL).' };
   }
+
+  // acumuladores intermediários usando Set pra positivação (contagem de CNPJ Raiz distintos)
+  const cnpjSets = {}; // { nome: { produtoKey: Set<cnpjRaiz> } }
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
@@ -135,8 +139,19 @@ export function parseRealizadoWorkbook(workbook) {
     if (!key) continue;
     const valor = parseCurrencyCell(row[idxValor]);
     if (!result[nome]) result[nome] = {};
-    result[nome][key] = (result[nome][key] || 0) + valor;
+    if (!result[nome][key]) result[nome][key] = { valor: 0, cnpjs: [] };
+    result[nome][key].valor += valor;
     rowsFound++;
+
+    if (idxCnpjRaiz > -1) {
+      const cnpjRaiz = String(row[idxCnpjRaiz] || '').trim();
+      if (cnpjRaiz) {
+        if (!cnpjSets[nome]) cnpjSets[nome] = {};
+        if (!cnpjSets[nome][key]) cnpjSets[nome][key] = new Set();
+        cnpjSets[nome][key].add(cnpjRaiz);
+      }
+    }
+
     if (idxCod > -1) {
       const cod = String(row[idxCod] || '').trim();
       if (cod) codigoMap[cod] = nome;
@@ -146,6 +161,14 @@ export function parseRealizadoWorkbook(workbook) {
       if (sup) supervisorMap[nome] = sup;
     }
   }
+
+  // converte os Sets de CNPJ em arrays no resultado final
+  Object.keys(cnpjSets).forEach(nome => {
+    Object.keys(cnpjSets[nome]).forEach(key => {
+      result[nome][key].cnpjs = Array.from(cnpjSets[nome][key]);
+    });
+  });
+
   return { data: result, codigoMap, supervisorMap, rowsFound };
 }
 
@@ -179,7 +202,8 @@ export function parseRealizadoMDTR(workbook) {
     if (!key) continue;
     const valor = parseCurrencyCell(row[idxPPP]);
     if (!result[nome]) result[nome] = {};
-    result[nome][key] = (result[nome][key] || 0) + valor;
+    if (!result[nome][key]) result[nome][key] = { valor: 0, cnpjs: [] };
+    result[nome][key].valor += valor;
     rowsFound++;
     if (cod) codigoMap[cod] = nome;
   }
