@@ -33,6 +33,18 @@ export default function GestorView({ camp, gestorNome }) {
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
             {stats.produtos.length ? stats.produtos.map(p => {
+              if (p.isUnclassified) {
+                return (
+                  <tr key={p.key} style={{ fontStyle: 'italic', color: 'var(--muted)' }}>
+                    <td>{p.label}</td>
+                    <td className="num">—</td>
+                    <td className="num">{formatBRL(p.realizado)}</td>
+                    {showPositivacao && <td className="num">{p.positivacao}</td>}
+                    <td className="num">—</td>
+                    <td><span className="pill pill-warn">Verificar dosagem</span></td>
+                  </tr>
+                );
+              }
               let pillClass = 'pill-bad', pillLabel = 'Abaixo';
               if (p.cob >= 100) { pillClass = 'pill-ok'; pillLabel = 'Atingido'; }
               else if (p.cob >= 70) { pillClass = 'pill-warn'; pillLabel = 'Próximo'; }
@@ -88,12 +100,12 @@ export default function GestorView({ camp, gestorNome }) {
                           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th></tr></thead>
                           <tbody>
                             {ms.produtos.length ? ms.produtos.map(p => (
-                              <tr key={p.key}>
+                              <tr key={p.key} style={p.isUnclassified ? { fontStyle: 'italic', color: 'var(--muted)' } : undefined}>
                                 <td>{p.label}</td>
-                                <td className="num">{formatBRL(p.obj)}</td>
+                                <td className="num">{p.isUnclassified ? '—' : formatBRL(p.obj)}</td>
                                 <td className="num">{formatBRL(p.realizado)}</td>
                                 {showPositivacao && <td className="num">{p.positivacao}</td>}
-                                <td className="num">{formatPct(p.cob)}</td>
+                                <td className="num">{p.isUnclassified ? '—' : formatPct(p.cob)}</td>
                               </tr>
                             )) : <tr><td colSpan={showPositivacao ? 5 : 4} className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
                           </tbody>
