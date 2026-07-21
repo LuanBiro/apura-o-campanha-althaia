@@ -12,6 +12,7 @@
   --warn:#E0A800;
   --danger:#D9534F;
   --muted:#7C8A91;
+  --pantone3115c:#00C1D5;
 }
 *{box-sizing:border-box;}
 body{
@@ -59,9 +60,9 @@ table{width:100%; border-collapse:collapse; font-size:14px;}
 .table-scroll-sticky th:first-child, .table-scroll-sticky td:first-child{
   position:sticky; left:0; z-index:2; box-shadow:2px 0 4px -2px rgba(0,0,0,0.15);
 }
-.table-scroll-sticky th:first-child{background:var(--petroleo);}
+.table-scroll-sticky th:first-child{background:var(--pantone3115c);}
 .table-scroll-sticky td:first-child{background:var(--card);}
-th{text-align:left; padding:10px 12px; background:var(--petroleo); color:#fff; font-size:12px; text-transform:uppercase; letter-spacing:0.4px;}
+th{text-align:left; padding:10px 12px; background:var(--pantone3115c); color:#fff; font-size:12px; text-transform:uppercase; letter-spacing:0.4px;}
 td{padding:10px 12px; border-bottom:1px solid var(--line);}
 tr:last-child td{border-bottom:none;}
 .num{text-align:right; font-variant-numeric:tabular-nums;}
@@ -70,9 +71,9 @@ tr:last-child td{border-bottom:none;}
 .pill-warn{background:#FFF4DA; color:#8A6800;}
 .pill-bad{background:#FBE7E6; color:var(--danger);}
 .stat-row{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:20px;}
-.stat-box{flex:1; min-width:160px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px;}
-.stat-box .label{font-size:12px; color:var(--muted); text-transform:uppercase; font-weight:700; letter-spacing:0.4px;}
-.stat-box .value{font-size:26px; font-weight:800; color:var(--petroleo); margin-top:4px;}
+.stat-box{flex:1; min-width:160px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; overflow:hidden;}
+.stat-box .label{font-size:12px; color:var(--muted); text-transform:uppercase; font-weight:700; letter-spacing:0.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.stat-box .value{font-size:21px; font-weight:800; color:var(--petroleo); margin-top:4px; word-break:break-word; overflow-wrap:anywhere; line-height:1.25;}
 .stat-box.accent{background:var(--petroleo); border-color:var(--petroleo);}
 .stat-box.accent .label{color:#9FB0B6;}
 .stat-box.accent .value{color:var(--azul-vida);}
@@ -121,4 +122,5 @@ input:checked + .slider:before{transform:translateX(20px);}
   .stat-row{flex-direction:column;}
   table{font-size:12.5px;}
   th, td{padding:8px 10px;}
+  .stat-box .value{font-size:19px;}
 }
