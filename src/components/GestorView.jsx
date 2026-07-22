@@ -10,6 +10,7 @@ export default function GestorView({ camp, gestorNome }) {
   const hasSelfAccount = stats.memberStats.some(ms => ms.isSelfAccount);
   const [expandido, setExpandido] = useState(null); // nome do consultor com detalhe aberto
   const showPositivacao = camp.id === 'varejo';
+  const rankingDisplay = ranking && camp.id === 'varejo' ? ranking.slice(0, 20) : ranking;
 
   return (
     <div className="wrap">
@@ -148,8 +149,8 @@ export default function GestorView({ camp, gestorNome }) {
       {ranking ? (
         <div className="card no-print">
           <h2>Ranking de Consultores · {camp.label}</h2>
-          <h3>Sua equipe destacada · gestores não entram nesse ranking, competem no ranking de gestores acima</h3>
-          {ranking.map((r, i) => {
+          <h3>Sua equipe destacada · gestores não entram nesse ranking, competem no ranking de gestores acima{rankingDisplay.length < ranking.length ? ` · exibindo os ${rankingDisplay.length} primeiros de ${ranking.length}` : ''}</h3>
+          {rankingDisplay.map((r, i) => {
             const pos = i + 1;
             const isMyTeam = memberNames.indexOf(r.nome) > -1;
             return (
