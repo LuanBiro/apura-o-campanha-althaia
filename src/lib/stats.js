@@ -172,7 +172,7 @@ export function computeGestorRanking(camp) {
   return list;
 }
 
-// Resolve login por nome ou código — retorna {nome, type: 'comercial'|'gestor'} ou null.
+// Resolve login só por nome — retorna {nome, type: 'comercial'|'gestor'} ou null.
 export function resolveLogin(camp, input) {
   const raw = String(input || '').trim();
   if (!raw) return null;
@@ -181,11 +181,6 @@ export function resolveLogin(camp, input) {
   let nome = null;
 
   if (camp.objData[upper]) nome = upper;
-  else if (camp.codigoMap[raw]) nome = camp.codigoMap[raw];
-  else {
-    const codeMatch = Object.keys(camp.codigoMap).find(c => c.trim() === raw.trim());
-    if (codeMatch) nome = camp.codigoMap[codeMatch];
-  }
   if (!nome) {
     const partial = Object.keys(camp.objData).find(n => n.indexOf(upper) > -1);
     if (partial) nome = partial;
