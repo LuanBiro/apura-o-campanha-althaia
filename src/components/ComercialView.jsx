@@ -6,6 +6,7 @@ export default function ComercialView({ camp, nome }) {
   const ranking = camp.rankingVisible ? computeRanking(camp) : null;
   const myPos = ranking ? ranking.findIndex(r => r.nome === nome) + 1 : null;
   const showPositivacao = camp.id === 'varejo';
+  const rankingDisplay = ranking && camp.id === 'varejo' ? ranking.slice(0, 20) : ranking;
 
   return (
     <div className="wrap">
@@ -68,8 +69,8 @@ export default function ComercialView({ camp, nome }) {
       {ranking ? (
         <div className="card no-print">
           <h2>🏆 Ranking · {camp.label}</h2>
-          <h3>Critério: quantidade de produtos com 100% da meta · desempate pela cobertura total</h3>
-          {ranking.map((r, i) => {
+          <h3>Critério: quantidade de produtos com 100% da meta · desempate pela cobertura total{rankingDisplay.length < ranking.length ? ` · exibindo os ${rankingDisplay.length} primeiros de ${ranking.length}` : ''}</h3>
+          {rankingDisplay.map((r, i) => {
             const pos = i + 1;
             const isMe = r.nome === nome;
             return (
@@ -83,6 +84,11 @@ export default function ComercialView({ camp, nome }) {
               </div>
             );
           })}
+          {myPos > rankingDisplay.length && (
+            <div className="hint" style={{ marginTop: 10, marginBottom: 0 }}>
+              Sua posição atual é {myPos}º — fora dos {rankingDisplay.length} primeiros exibidos aqui.
+            </div>
+          )}
         </div>
       ) : (
         <div className="card no-print"><div className="empty">O ranking desta campanha ainda não foi liberado pelo administrador.</div></div>
