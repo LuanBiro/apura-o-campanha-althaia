@@ -21,7 +21,7 @@ export default function CampaignLogin({ camp, onBack, onLoginSuccess }) {
   const handleIdentify = () => {
     const r = resolveLogin(camp, nomeCodigo);
     if (!r) {
-      setError('Não encontrei esse nome ou código nesta campanha.');
+      setError('Não encontrei esse nome nesta campanha.');
       return;
     }
     setError('');
@@ -96,10 +96,10 @@ export default function CampaignLogin({ camp, onBack, onLoginSuccess }) {
         <button className="btn-link" style={{ marginBottom: 10 }} onClick={onBack}>&larr; Trocar campanha</button>
         <h2>{camp.label}</h2>
         <h3>{camp.campaignName || camp.label}</h3>
-        <label>Nome ou código</label>
+        <label>Nome</label>
         <input type="text" value={nomeCodigo} onChange={e => setNomeCodigo(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleIdentify()}
-          placeholder="Ex: AMANDA SANTANNA DA SILVA ou 122000" />
+          placeholder="Ex: ALTHAIA" />
         <div className="hint" style={{ marginTop: -12 }}>
           Gestores digitam o próprio nome e veem automaticamente a apuração consolidada da equipe.
         </div>
