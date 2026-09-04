@@ -1,11 +1,11 @@
 // src/components/ComercialView.jsx
-import { computeConsultorStats, computeRanking, formatBRL, formatPct } from '../lib/stats';
+import { computeConsultorStats, computeRanking, formatBRL, formatNum, formatPct, isPositivacaoCampaign } from '../lib/stats';
 
 export default function ComercialView({ camp, nome }) {
   const stats = computeConsultorStats(camp, nome);
   const ranking = camp.rankingVisible ? computeRanking(camp) : null;
   const myPos = ranking ? ranking.findIndex(r => r.nome === nome) + 1 : null;
-  const showPositivacao = camp.id === 'varejo';
+  const isPos = isPositivacaoCampaign(camp);
   const rankingDisplay = ranking && camp.id === 'varejo' ? ranking.slice(0, 20) : ranking;
 
   return (
@@ -16,9 +16,17 @@ export default function ComercialView({ camp, nome }) {
       </div>
 
       <div className="stat-row">
-        <div className="stat-box"><div className="label">Objetivo total</div><div className="value">{formatBRL(stats.totalObj)}</div></div>
-        <div className="stat-box"><div className="label">Realizado total</div><div className="value">{formatBRL(stats.totalRealizado)}</div></div>
-        {showPositivacao && <div className="stat-box"><div className="label">Positivação total</div><div className="value">{stats.positivacaoTotal}</div></div>}
+        {isPos ? (
+          <>
+            <div className="stat-box"><div className="label">OBJ de positivação</div><div className="value">{formatNum(stats.totalObj)}</div></div>
+            <div className="stat-box"><div className="label">Positivados</div><div className="value">{formatNum(stats.totalAchieved)}</div></div>
+          </>
+        ) : (
+          <>
+            <div className="stat-box"><div className="label">Objetivo total</div><div className="value">{formatBRL(stats.totalObj)}</div></div>
+            <div className="stat-box"><div className="label">Realizado total</div><div className="value">{formatBRL(stats.totalRealizado)}</div></div>
+          </>
+        )}
         <div className="stat-box accent"><div className="label">Cobertura total</div><div className="value">{formatPct(stats.totalCob)}</div></div>
         {myPos ? <div className="stat-box"><div className="label">Posição no ranking</div><div className="value">{myPos}º</div></div> : null}
       </div>
@@ -27,7 +35,7 @@ export default function ComercialView({ camp, nome }) {
         <h2>Produtos da campanha</h2>
         <div className="table-scroll-sticky">
         <table>
-          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th>Status</th></tr></thead>
+          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
             {stats.produtos.length ? stats.produtos.map(p => {
               if (p.isUnclassified) {
@@ -35,8 +43,7 @@ export default function ComercialView({ camp, nome }) {
                   <tr key={p.key} style={{ fontStyle: 'italic', color: 'var(--muted)' }}>
                     <td>{p.label}</td>
                     <td className="num">—</td>
-                    <td className="num">{formatBRL(p.realizado)}</td>
-                    {showPositivacao && <td className="num">{p.positivacao}</td>}
+                    <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
                     <td className="num">—</td>
                     <td><span className="pill pill-warn">Verificar dosagem</span></td>
                   </tr>
@@ -48,14 +55,13 @@ export default function ComercialView({ camp, nome }) {
               return (
                 <tr key={p.key}>
                   <td>{p.label}</td>
-                  <td className="num">{formatBRL(p.obj)}</td>
-                  <td className="num">{formatBRL(p.realizado)}</td>
-                  {showPositivacao && <td className="num">{p.positivacao}</td>}
+                  <td className="num">{isPos ? formatNum(p.obj) : formatBRL(p.obj)}</td>
+                  <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
                   <td className="num">{formatPct(p.cob)}</td>
                   <td><span className={`pill ${pillClass}`}>{pillLabel}</span></td>
                 </tr>
               );
-            }) : <tr><td colSpan={showPositivacao ? 6 : 5} className="empty">Nenhum produto encontrado para este nome.</td></tr>}
+            }) : <tr><td colSpan="5" className="empty">Nenhum produto encontrado para este nome.</td></tr>}
           </tbody>
         </table>
         </div>
