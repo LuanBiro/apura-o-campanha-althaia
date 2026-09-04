@@ -4,7 +4,7 @@ import { CAMPAIGNS } from '../lib/campaigns';
 import { readFileAsWorkbook, parseObjWorkbook, parseRealizadoWorkbook, parseRealizadoMDTR } from '../lib/parsers';
 import {
   computeTeamMap, computeAllIndividualStats, computeRanking, computeGestorRanking,
-  formatBRL, formatPct
+  formatBRL, formatNum, formatPct, isPositivacaoCampaign
 } from '../lib/stats';
 import {
   saveObjData, saveRealizadoData, updateCampaignConfig, clearCampaignData, resetUserPassword
@@ -56,6 +56,7 @@ export default function AdminView({ campaigns, onReloadCampaign }) {
 /* ---------------- Importar ---------------- */
 function ImportarTab({ camp, onReloadCampaign }) {
   const isMDTR = camp.id === 'geradores-demanda';
+  const isVarejo = camp.id === 'varejo';
   const [objStatus, setObjStatus] = useState(null);
   const [realStatus, setRealStatus] = useState(null);
   const objInputRef = useRef(null);
@@ -100,16 +101,19 @@ function ImportarTab({ camp, onReloadCampaign }) {
     }
   };
 
-  const isVarejo = camp.id === 'varejo';
+  const objHint = isVarejo
+    ? 'Formato: nome no cabeçalho do bloco, produtos e valores de OBJ abaixo, encerrando em "TOTAL". Nesta campanha (Varejo), o valor de cada produto é uma QUANTIDADE DE CLIENTES (CNPJ Raiz) a serem positivados — não é R$.'
+    : 'Formato: nome no cabeçalho do bloco, produtos e valores de OBJ abaixo, encerrando em "TOTAL" — igual ao seu relatório atual.';
+
   const realHint = isMDTR
     ? 'Formato MDTR desta campanha: colunas PPP (valor realizado), Família e Ger. Demanda (código e nome juntos, ex: "111199 - DANILO DE AZEVEDO SANTIAGO"). Não tem coluna de gestor — essa campanha é sempre apurada por pessoa. O texto da Família precisa ser igual ao da planilha de OBJ.'
-    : `Colunas esperadas: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL${isVarejo ? ', CNPJ Raiz' : ''}. A Família deve vir já separada por dosagem quando necessário (ex: "ROSUVASTATINA 40MG" e "ROSUVASTATINA 5/10/20" como linhas distintas) — o texto precisa ser igual ao que está na planilha de OBJ. A coluna Supervisor Nome é usada para montar a visão consolidada de cada gestor automaticamente.${isVarejo ? ' A coluna CNPJ Raiz é usada para calcular a positivação (quantidade de clientes distintos que compraram cada produto) — essa métrica só aparece nesta campanha.' : ''}`;
+    : `Colunas esperadas: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL${isVarejo ? ', CNPJ Raiz' : ''}. A Família deve vir já separada por dosagem quando necessário (ex: "ROSUVASTATINA 40MG" e "ROSUVASTATINA 5/10/20" como linhas distintas) — o texto precisa ser igual ao que está na planilha de OBJ. A coluna Supervisor Nome é usada para montar a visão consolidada de cada gestor automaticamente.${isVarejo ? ' A coluna CNPJ Raiz é obrigatória nesta campanha — é ela que conta quantos clientes distintos foram positivados por produto, base da cobertura aqui.' : ''}`;
 
   return (
     <>
       <div className="card">
         <h2>1. Planilha de OBJ (meta por pessoa)</h2>
-        <h3>Formato: nome no cabeçalho do bloco, produtos e valores de OBJ abaixo, encerrando em "TOTAL" — igual ao seu relatório atual.</h3>
+        <h3>{objHint}</h3>
         <div className="dropzone" onClick={() => objInputRef.current.click()}
           onDragOver={e => e.preventDefault()}
           onDrop={e => { e.preventDefault(); if (e.dataTransfer.files[0]) handleObjFile(e.dataTransfer.files[0]); }}>
@@ -157,7 +161,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
   const teamMap = computeTeamMap(camp);
   const f = filter.trim().toUpperCase();
   const filtered = f ? all.filter(r => r.nome.indexOf(f) > -1) : all;
-  const showPositivacao = camp.id === 'varejo';
+  const isPos = isPositivacaoCampaign(camp);
 
   if (!Object.keys(camp.objData).length) {
     return <div className="card"><div className="empty">Importe a base de OBJ para ver as apurações por pessoa.</div></div>;
@@ -177,7 +181,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
       <div className="table-scroll">
       <table>
         <thead>
-          <tr><th>Nome</th><th>Reporta para</th><th className="num">OBJ</th><th className="num">Realizado</th>{showPositivacao && <th className="num">Positivação</th>}<th className="num">Cob. %</th><th className="num">Produtos 100%</th><th>Acesso</th></tr>
+          <tr><th>Nome</th><th>Reporta para</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th><th>Acesso</th></tr>
         </thead>
         <tbody>
           {filtered.length ? filtered.map(r => {
@@ -187,9 +191,8 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
               <tr key={r.nome}>
                 <td>{r.nome}{isGestor && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Gestor</span>}</td>
                 <td>{camp.supervisorMap[r.nome] || '—'}</td>
-                <td className="num">{formatBRL(r.totalObj)}</td>
-                <td className="num">{formatBRL(r.totalRealizado)}</td>
-                {showPositivacao && <td className="num">{r.positivacaoTotal}</td>}
+                <td className="num">{isPos ? formatNum(r.totalObj) : formatBRL(r.totalObj)}</td>
+                <td className="num">{isPos ? formatNum(r.totalAchieved) : formatBRL(r.totalRealizado)}</td>
                 <td className="num">{formatPct(r.totalCob)}</td>
                 <td className="num">{r.count100}/{r.coreCount}</td>
                 <td>
@@ -199,7 +202,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
                 </td>
               </tr>
             );
-          }) : <tr><td colSpan={showPositivacao ? 8 : 7} className="empty">Nenhum resultado.</td></tr>}
+          }) : <tr><td colSpan="7" className="empty">Nenhum resultado.</td></tr>}
         </tbody>
       </table>
       </div>
