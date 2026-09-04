@@ -1,9 +1,21 @@
 // lib/stats.js
-// Cálculo de cobertura e rankings — idêntico à lógica validada no protótipo.
+// Cálculo de cobertura e rankings.
+// Varejo é uma campanha de POSITIVAÇÃO: o OBJ é uma quantidade de clientes (CNPJ Raiz)
+// a serem positivados por produto, e a cobertura = positivados ÷ OBJ.
+// As demais campanhas continuam em R$ (Realizado ÷ OBJ), como sempre foram.
+
+export function isPositivacaoCampaign(camp) {
+  return camp.id === 'varejo';
+}
 
 export function formatBRL(v) {
   if (v === undefined || v === null || isNaN(v)) v = 0;
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export function formatNum(v) {
+  if (v === undefined || v === null || isNaN(v)) v = 0;
+  return v.toLocaleString('pt-BR');
 }
 
 export function formatPct(v) {
@@ -11,7 +23,6 @@ export function formatPct(v) {
   return v.toFixed(1).replace('.', ',') + '%';
 }
 
-// camp = { objData, realizadoData, supervisorMap, codigoMap }
 export function computeTeamMap(camp) {
   const map = {};
   Object.keys(camp.supervisorMap || {}).forEach(consultor => {
@@ -32,11 +43,12 @@ function baseFamilyOf(s) {
 }
 
 export function computeConsultorStats(camp, nome) {
+  const isPos = isPositivacaoCampaign(camp);
   const objBlock = camp.objData[nome] || {};
   const realBlock = camp.realizadoData[nome] || {};
 
   // agrupa os produtos do OBJ dessa pessoa por família base
-  const objGroups = {}; // baseFam -> [{key,label,obj}]
+  const objGroups = {};
   Object.keys(objBlock).forEach(key => {
     const baseFam = baseFamilyOf(key);
     if (!objGroups[baseFam]) objGroups[baseFam] = [];
@@ -44,7 +56,7 @@ export function computeConsultorStats(camp, nome) {
   });
 
   // agrega o realizado por família base também (para o fallback de casamento)
-  const realByBase = {}; // baseFam -> {valor, cnpjSet}
+  const realByBase = {};
   Object.keys(realBlock).forEach(key => {
     const baseFam = baseFamilyOf(key);
     if (!realByBase[baseFam]) realByBase[baseFam] = { valor: 0, cnpjSet: new Set() };
@@ -52,21 +64,17 @@ export function computeConsultorStats(camp, nome) {
     (realBlock[key].cnpjs || []).forEach(c => realByBase[baseFam].cnpjSet.add(c));
   });
 
-  const produtos = [];
+  const produtosRaw = [];
   Object.keys(objGroups).forEach(baseFam => {
     const group = objGroups[baseFam];
     const aggBase = realByBase[baseFam] || { valor: 0, cnpjSet: new Set() };
 
     if (group.length === 1) {
-      // única entrada para essa família: soma tudo que existir naquela família,
-      // não importa se a dose no Qlik veio escrita diferente ou nem veio
       const p = group[0];
       const realizado = aggBase.valor;
       const cnpjs = Array.from(aggBase.cnpjSet);
-      const cob = p.obj > 0 ? (realizado / p.obj * 100) : 0;
-      produtos.push({ key: p.key, label: p.label, obj: p.obj, realizado, cob, cnpjs, positivacao: cnpjs.length, isUnclassified: false });
+      produtosRaw.push({ key: p.key, label: p.label, obj: p.obj, realizado, cnpjs, isUnclassified: false });
     } else {
-      // múltiplas entradas (dosagens diferentes no OBJ): tenta casar por texto exato primeiro
       let matchedValor = 0;
       const matchedCnpjs = new Set();
       group.forEach(p => {
@@ -75,42 +83,53 @@ export function computeConsultorStats(camp, nome) {
         const cnpjs = exact ? (exact.cnpjs || []) : [];
         matchedValor += realizado;
         cnpjs.forEach(c => matchedCnpjs.add(c));
-        const cob = p.obj > 0 ? (realizado / p.obj * 100) : 0;
-        produtos.push({ key: p.key, label: p.label, obj: p.obj, realizado, cob, cnpjs, positivacao: cnpjs.length, isUnclassified: false });
+        produtosRaw.push({ key: p.key, label: p.label, obj: p.obj, realizado, cnpjs, isUnclassified: false });
       });
-      // sobra da família que não bateu com nenhuma dose específica (ex: veio sem dose no Qlik)
       const unclassifiedValor = aggBase.valor - matchedValor;
       const unclassifiedCnpjs = Array.from(aggBase.cnpjSet).filter(c => !matchedCnpjs.has(c));
       if (unclassifiedValor > 0.5 || unclassifiedCnpjs.length) {
-        produtos.push({
+        produtosRaw.push({
           key: baseFam + '__unclassified',
           label: baseFam + ' (dosagem não identificada no Qlik)',
-          obj: 0, realizado: Math.max(unclassifiedValor, 0), cob: 0,
-          cnpjs: unclassifiedCnpjs, positivacao: unclassifiedCnpjs.length, isUnclassified: true
+          obj: 0, realizado: Math.max(unclassifiedValor, 0),
+          cnpjs: unclassifiedCnpjs, isUnclassified: true
         });
       }
     }
+  });
+
+  // calcula cobertura por produto: positivação÷OBJ pro Varejo, R$÷OBJ pras demais
+  const produtos = produtosRaw.map(p => {
+    const positivacao = p.cnpjs.length;
+    const achieved = isPos ? positivacao : p.realizado;
+    const cob = p.obj > 0 ? (achieved / p.obj * 100) : 0;
+    return { ...p, positivacao, cob };
   });
 
   produtos.sort((a, b) => a.label.localeCompare(b.label));
   const coreProdutos = produtos.filter(p => !p.isUnclassified);
   const totalObj = coreProdutos.reduce((s, p) => s + p.obj, 0);
   const totalRealizado = produtos.reduce((s, p) => s + p.realizado, 0);
-  const totalCob = totalObj > 0 ? (totalRealizado / totalObj * 100) : 0;
+  const totalAchieved = produtos.reduce((s, p) => s + (isPos ? p.positivacao : p.realizado), 0);
+  const totalCob = totalObj > 0 ? (totalAchieved / totalObj * 100) : 0;
   const count100 = coreProdutos.filter(p => p.cob >= 100).length;
-  // positivação total da pessoa: união de CNPJs distintos em qualquer produto (um cliente pode contar 1x mesmo comprando vários produtos)
+  // positivação total da pessoa: união de CNPJs distintos em qualquer produto
   const cnpjsUnicos = new Set();
   produtos.forEach(p => p.cnpjs.forEach(c => cnpjsUnicos.add(c)));
 
-  return { nome, produtos, coreCount: coreProdutos.length, totalObj, totalRealizado, totalCob, count100, positivacaoTotal: cnpjsUnicos.size };
+  return {
+    nome, produtos, coreCount: coreProdutos.length,
+    totalObj, totalRealizado, totalAchieved, totalCob, count100,
+    positivacaoTotal: cnpjsUnicos.size
+  };
 }
 
 export function computeGestorStats(camp, gestorNome) {
+  const isPos = isPositivacaoCampaign(camp);
   const teamMap = computeTeamMap(camp);
   const members = teamMap[gestorNome] || [];
   const memberStats = members.map(m => computeConsultorStats(camp, m));
 
-  // se o gestor também tiver bloco de OBJ próprio (ex: atende cliente direto), soma junto
   const hasOwnAccount = !!camp.objData[gestorNome];
   if (hasOwnAccount) {
     const ownStats = computeConsultorStats(camp, gestorNome);
@@ -130,22 +149,28 @@ export function computeGestorStats(camp, gestorNome) {
 
   const produtos = Object.keys(produtoAgg).map(key => {
     const o = produtoAgg[key];
-    const cob = o.obj > 0 ? (o.realizado / o.obj * 100) : 0;
-    return { key, label: o.label, obj: o.obj, realizado: o.realizado, cob, positivacao: o.cnpjSet.size, isUnclassified: o.isUnclassified };
+    const positivacao = o.cnpjSet.size;
+    const achieved = isPos ? positivacao : o.realizado;
+    const cob = o.obj > 0 ? (achieved / o.obj * 100) : 0;
+    return { key, label: o.label, obj: o.obj, realizado: o.realizado, cob, positivacao, isUnclassified: o.isUnclassified };
   });
 
   produtos.sort((a, b) => a.label.localeCompare(b.label));
   const coreProdutos = produtos.filter(p => !p.isUnclassified);
   const totalObj = coreProdutos.reduce((s, p) => s + p.obj, 0);
   const totalRealizado = produtos.reduce((s, p) => s + p.realizado, 0);
-  const totalCob = totalObj > 0 ? (totalRealizado / totalObj * 100) : 0;
+  const totalAchieved = produtos.reduce((s, p) => s + (isPos ? p.positivacao : p.realizado), 0);
+  const totalCob = totalObj > 0 ? (totalAchieved / totalObj * 100) : 0;
   const count100 = coreProdutos.filter(p => p.cob >= 100).length;
   memberStats.sort((a, b) => b.totalCob - a.totalCob);
-  // positivação total da equipe: união de CNPJs distintos em qualquer membro/produto
   const cnpjsUnicosEquipe = new Set();
   memberStats.forEach(ms => ms.produtos.forEach(p => p.cnpjs.forEach(c => cnpjsUnicosEquipe.add(c))));
 
-  return { gestorNome, members, memberStats, produtos, coreCount: coreProdutos.length, totalObj, totalRealizado, totalCob, count100, positivacaoTotal: cnpjsUnicosEquipe.size };
+  return {
+    gestorNome, members, memberStats, produtos, coreCount: coreProdutos.length,
+    totalObj, totalRealizado, totalAchieved, totalCob, count100,
+    positivacaoTotal: cnpjsUnicosEquipe.size
+  };
 }
 
 // Ranking de consultores: exclui quem é gestor de equipe.
@@ -194,7 +219,7 @@ export function resolveLogin(camp, input) {
   return { nome, type: teamMap[nome] ? 'gestor' : 'comercial' };
 }
 
-// Hash de senha (SHA-256) — usar Web Crypto API (browser) ou 'crypto' (Node/edge functions).
+// Hash de senha (SHA-256).
 export async function hashPassword(pw) {
   const enc = new TextEncoder().encode(String(pw));
   const buf = await crypto.subtle.digest('SHA-256', enc);
