@@ -9,8 +9,6 @@ export function normalizeNome(s) {
 }
 
 export function normalizeProdutoKey(s) {
-  // normaliza caixa e espaços, mas preserva números — a Família já vem separada
-  // por dosagem quando necessário (ex: "ROSUVASTATINA 40MG" vs "ROSUVASTATINA 5/10/20")
   return String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
 }
 
@@ -28,8 +26,6 @@ export function parseCurrencyCell(v) {
 }
 
 export function extractCodeAndName(raw) {
-  // "112096 - DANIELE ASSUNCAO DILL" -> {cod:'112096', nome:'DANIELE ASSUNCAO DILL'}
-  // "DANIELE ASSUNCAO DILL" -> {cod:'', nome:'DANIELE ASSUNCAO DILL'}
   const text = String(raw || '').trim();
   const dashIdx = text.indexOf(' - ');
   if (dashIdx > -1) {
@@ -56,11 +52,10 @@ export function readFileAsWorkbook(file) {
 }
 
 // -----------------------------------------------------------------
-// Planilha de OBJ: bloco por pessoa (nome no cabeçalho, produtos abaixo, "TOTAL" fecha o bloco)
-// Usada por TODAS as campanhas.
+// Planilha de OBJ: bloco por pessoa. Usada por TODAS as campanhas.
 // -----------------------------------------------------------------
 export function parseObjWorkbook(workbook) {
-  const result = {}; // { NOME: { produtoKey: {label, obj} } }
+  const result = {};
   let rowsFound = 0, peopleFound = 0;
 
   workbook.SheetNames.forEach(sheetName => {
@@ -75,7 +70,7 @@ export function parseObjWorkbook(workbook) {
       const c0Upper = c0.toUpperCase();
       const isTotalRow = c0Upper === 'TOTAL' || c0Upper === 'TOTAL GERAL';
 
-      // Formato A: nome e "OBJ" na mesma linha (ex: "AMANDA SANTANNA | OBJ | REALIZADO | COB.%")
+      // Formato A: nome e "OBJ" na mesma linha
       const isHeaderSameLine = c1Upper === 'OBJ' || c1Upper.indexOf('OBJ') === 0;
 
       // Formato B: nome sozinho numa linha, com "FAMÍLIA | OBJ | COB.%" na linha seguinte
@@ -99,7 +94,7 @@ export function parseObjWorkbook(workbook) {
       if (isHeaderNextLine) {
         currentPerson = extractCodeAndName(c0).nome;
         if (!result[currentPerson]) { result[currentPerson] = {}; peopleFound++; }
-        i++; // pula a linha de sub-cabeçalho "FAMÍLIA | OBJ | COB.%"
+        i++;
         continue;
       }
       if (isTotalRow) { currentPerson = null; continue; }
@@ -121,8 +116,7 @@ export function parseObjWorkbook(workbook) {
 }
 
 // -----------------------------------------------------------------
-// Base do Qlik: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL
-// Usada em Grandes Contas, Distribuição e Varejo.
+// Base do Qlik: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL, CNPJ Raiz
 // -----------------------------------------------------------------
 export function parseRealizadoWorkbook(workbook) {
   const result = {};
@@ -140,18 +134,23 @@ export function parseRealizadoWorkbook(workbook) {
 
   const header = rows[0].map(h => String(h).toLowerCase());
   const idxCod = header.findIndex(h => h.indexOf('cod') > -1 && h.indexOf('artigo') === -1 && h.indexOf('cnpj') === -1);
-  const idxNome = header.findIndex(h => h.indexOf('nome') > -1 && h.indexOf('supervisor') === -1);
+  // Prioriza "Consultor Nome" explicitamente; só cai pro heurístico genérico se não achar
+  // (evita confundir com "Distrital Nome", "Regional Nome" etc. que também contêm "nome")
+  let idxNome = header.findIndex(h => h.indexOf('consultor') > -1 && h.indexOf('nome') > -1);
+  if (idxNome === -1) {
+    idxNome = header.findIndex(h => h.indexOf('nome') > -1 && h.indexOf('supervisor') === -1 && h.indexOf('distrital') === -1 && h.indexOf('regional') === -1);
+  }
+  // Exclui colunas de quantidade (ex: "Qtd Fat+OL") da busca pelo valor em R$ ("Fat+OL")
+  const idxValor = header.findIndex(h => (h.indexOf('fat') > -1 || h.indexOf('realizado') > -1 || h.indexOf('valor') > -1) && h.indexOf('qtd') === -1);
   const idxSupervisor = header.findIndex(h => h.indexOf('supervisor') > -1);
   const idxFamilia = header.findIndex(h => h.indexOf('fam') > -1);
-  const idxValor = header.findIndex(h => h.indexOf('fat') > -1 || h.indexOf('realizado') > -1 || h.indexOf('valor') > -1);
   const idxCnpjRaiz = header.findIndex(h => h.indexOf('cnpj') > -1);
 
   if (idxNome === -1 || idxFamilia === -1 || idxValor === -1) {
     return { data: {}, codigoMap: {}, supervisorMap: {}, rowsFound: 0, error: 'Não encontrei as colunas esperadas (Consultor Nome, Família, Fat+OL).' };
   }
 
-  // acumuladores intermediários usando Set pra positivação (contagem de CNPJ Raiz distintos)
-  const cnpjSets = {}; // { nome: { produtoKey: Set<cnpjRaiz> } }
+  const cnpjSets = {};
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
@@ -184,7 +183,6 @@ export function parseRealizadoWorkbook(workbook) {
     }
   }
 
-  // converte os Sets de CNPJ em arrays no resultado final
   Object.keys(cnpjSets).forEach(nome => {
     Object.keys(cnpjSets[nome]).forEach(key => {
       result[nome][key].cnpjs = Array.from(cnpjSets[nome][key]);
@@ -195,8 +193,7 @@ export function parseRealizadoWorkbook(workbook) {
 }
 
 // -----------------------------------------------------------------
-// Base MDTR: PPP | Família | Ger. Demanda ("111199 - NOME")
-// Usada só na campanha Geradores de Demanda. Sem Supervisor Nome (sem hierarquia).
+// Base MDTR: PPP | Família | Ger. Demanda. Usada só em Geradores de Demanda.
 // -----------------------------------------------------------------
 export function parseRealizadoMDTR(workbook) {
   const result = {};
