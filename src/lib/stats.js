@@ -189,6 +189,48 @@ export function computeAllIndividualStats(camp) {
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
+// Visão por produto de toda a campanha (soma de todo mundo que tem OBJ, sem
+// distinção de gestor/consultor) — uso administrativo, "visão de gestor geral".
+export function computeCampaignProdutoStats(camp) {
+  const isPos = isPositivacaoCampaign(camp);
+  const all = computeAllIndividualStats(camp);
+
+  const produtoAgg = {};
+  all.forEach(person => {
+    person.produtos.forEach(p => {
+      if (!produtoAgg[p.key]) produtoAgg[p.key] = { label: p.label, obj: 0, realizado: 0, cnpjSet: new Set(), isUnclassified: p.isUnclassified };
+      produtoAgg[p.key].obj += p.obj;
+      produtoAgg[p.key].realizado += p.realizado;
+      p.cnpjs.forEach(c => produtoAgg[p.key].cnpjSet.add(c));
+    });
+  });
+
+  const produtos = Object.keys(produtoAgg).map(key => {
+    const o = produtoAgg[key];
+    const positivacao = o.cnpjSet.size;
+    const achieved = isPos ? positivacao : o.realizado;
+    const cob = o.obj > 0 ? (achieved / o.obj * 100) : 0;
+    return { key, label: o.label, obj: o.obj, realizado: o.realizado, cob, positivacao, isUnclassified: o.isUnclassified };
+  });
+
+  produtos.sort((a, b) => a.label.localeCompare(b.label));
+  const coreProdutos = produtos.filter(p => !p.isUnclassified);
+  const totalObj = coreProdutos.reduce((s, p) => s + p.obj, 0);
+  const totalRealizado = produtos.reduce((s, p) => s + p.realizado, 0);
+  const totalAchieved = produtos.reduce((s, p) => s + (isPos ? p.positivacao : p.realizado), 0);
+  const totalCob = totalObj > 0 ? (totalAchieved / totalObj * 100) : 0;
+  const count100 = coreProdutos.filter(p => p.cob >= 100).length;
+  const cnpjsUnicosCampanha = new Set();
+  Object.values(produtoAgg).forEach(o => o.cnpjSet.forEach(c => cnpjsUnicosCampanha.add(c)));
+
+  return {
+    produtos, coreCount: coreProdutos.length,
+    totalObj, totalRealizado, totalAchieved, totalCob, count100,
+    positivacaoTotal: cnpjsUnicosCampanha.size,
+    pessoasCount: all.length
+  };
+}
+
 // Ranking de gestores: compara o total consolidado de cada equipe.
 export function computeGestorRanking(camp) {
   const teamMap = computeTeamMap(camp);
