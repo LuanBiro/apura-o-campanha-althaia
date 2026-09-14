@@ -1,5 +1,5 @@
 // src/components/AdminView.jsx
-import { useState, useRef } from 'react';
+import { useState, useRef, Fragment } from 'react';
 import { CAMPAIGNS } from '../lib/campaigns';
 import { readFileAsWorkbook, parseObjWorkbook, parseRealizadoWorkbook, parseRealizadoMDTR } from '../lib/parsers';
 import {
@@ -159,6 +159,7 @@ function ImportarTab({ camp, onReloadCampaign }) {
 /* ---------------- Apurações ---------------- */
 function ApuracoesTab({ camp, onReloadCampaign }) {
   const [filter, setFilter] = useState('');
+  const [expandido, setExpandido] = useState(null);
   const all = computeAllIndividualStats(camp);
   const teamMap = computeTeamMap(camp);
   const f = filter.trim().toUpperCase();
@@ -178,6 +179,7 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
   return (
     <div className="card">
       <h2>Todas as apurações · {camp.label}</h2>
+      <div className="hint" style={{ marginTop: -6 }}>Clique numa pessoa pra ver o detalhe por produto dela.</div>
       <input type="text" className="search-box" placeholder="Buscar por nome..."
         value={filter} onChange={e => setFilter(e.target.value)} />
       <div className="table-scroll">
@@ -189,20 +191,44 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
           {filtered.length ? filtered.map(r => {
             const isGestor = !!teamMap[r.nome];
             const temSenha = !!camp.userAuth[r.nome];
+            const isOpen = expandido === r.nome;
             return (
-              <tr key={r.nome}>
-                <td>{r.nome}{isGestor && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Gestor</span>}</td>
-                <td>{camp.supervisorMap[r.nome] || '—'}</td>
-                <td className="num">{isPos ? formatNum(r.totalObj) : formatBRL(r.totalObj)}</td>
-                <td className="num">{isPos ? formatNum(r.totalAchieved) : formatBRL(r.totalRealizado)}</td>
-                <td className="num">{formatPct(r.totalCob)}</td>
-                <td className="num">{r.count100}/{r.coreCount}</td>
-                <td>
-                  {temSenha
-                    ? <button className="btn-link" style={{ padding: '2px 0' }} onClick={() => handleResetSenha(r.nome)}>Resetar senha</button>
-                    : <span className="hint" style={{ margin: 0 }}>Sem senha ainda</span>}
-                </td>
-              </tr>
+              <Fragment key={r.nome}>
+                <tr onClick={() => setExpandido(isOpen ? null : r.nome)} style={{ cursor: 'pointer' }}>
+                  <td>{isOpen ? '▾' : '▸'} {r.nome}{isGestor && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Gestor</span>}</td>
+                  <td>{camp.supervisorMap[r.nome] || '—'}</td>
+                  <td className="num">{isPos ? formatNum(r.totalObj) : formatBRL(r.totalObj)}</td>
+                  <td className="num">{isPos ? formatNum(r.totalAchieved) : formatBRL(r.totalRealizado)}</td>
+                  <td className="num">{formatPct(r.totalCob)}</td>
+                  <td className="num">{r.count100}/{r.coreCount}</td>
+                  <td>
+                    {temSenha
+                      ? <button className="btn-link" style={{ padding: '2px 0' }} onClick={e => { e.stopPropagation(); handleResetSenha(r.nome); }}>Resetar senha</button>
+                      : <span className="hint" style={{ margin: 0 }}>Sem senha ainda</span>}
+                  </td>
+                </tr>
+                {isOpen && (
+                  <tr>
+                    <td colSpan="7" style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
+                      <div className="table-scroll-sticky">
+                      <table>
+                        <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th></tr></thead>
+                        <tbody>
+                          {r.produtos.length ? r.produtos.map(p => (
+                            <tr key={p.key} style={p.isUnclassified ? { fontStyle: 'italic', color: 'var(--muted)' } : undefined}>
+                              <td>{p.label}</td>
+                              <td className="num">{p.isUnclassified ? '—' : (isPos ? formatNum(p.obj) : formatBRL(p.obj))}</td>
+                              <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
+                              <td className="num">{p.isUnclassified ? '—' : formatPct(p.cob)}</td>
+                            </tr>
+                          )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
+                        </tbody>
+                      </table>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           }) : <tr><td colSpan="7" className="empty">Nenhum resultado.</td></tr>}
         </tbody>
