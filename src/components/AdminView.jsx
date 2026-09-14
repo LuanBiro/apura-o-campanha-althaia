@@ -3,7 +3,7 @@ import { useState, useRef } from 'react';
 import { CAMPAIGNS } from '../lib/campaigns';
 import { readFileAsWorkbook, parseObjWorkbook, parseRealizadoWorkbook, parseRealizadoMDTR } from '../lib/parsers';
 import {
-  computeTeamMap, computeAllIndividualStats, computeRanking, computeGestorRanking,
+  computeTeamMap, computeAllIndividualStats, computeCampaignProdutoStats, computeRanking, computeGestorRanking,
   formatBRL, formatNum, formatPct, isPositivacaoCampaign
 } from '../lib/stats';
 import {
@@ -41,14 +41,16 @@ export default function AdminView({ campaigns, onReloadCampaign }) {
       <div className="tabs no-print">
         <button className={`tab-btn ${adminTab === 'importar' ? 'active' : ''}`} onClick={() => setAdminTab('importar')}>Importar dados</button>
         <button className={`tab-btn ${adminTab === 'apuracoes' ? 'active' : ''}`} onClick={() => setAdminTab('apuracoes')}>Apurações (todas)</button>
+        <button className={`tab-btn ${adminTab === 'produtos' ? 'active' : ''}`} onClick={() => setAdminTab('produtos')}>Visão por Produto</button>
         <button className={`tab-btn ${adminTab === 'ranking' ? 'active' : ''}`} onClick={() => setAdminTab('ranking')}>Ranking</button>
         <button className={`tab-btn ${adminTab === 'config' ? 'active' : ''}`} onClick={() => setAdminTab('config')}>Configurações</button>
       </div>
 
-      {adminTab === 'importar' && <ImportarTab camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'apuracoes' && <ApuracoesTab camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'ranking' && <RankingTab camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'config' && <ConfigTab camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'importar' && <ImportarTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'apuracoes' && <ApuracoesTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'produtos' && <ProdutosTab key={camp.id} camp={camp} />}
+      {adminTab === 'ranking' && <RankingTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
+      {adminTab === 'config' && <ConfigTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
     </div>
   );
 }
@@ -210,6 +212,78 @@ function ApuracoesTab({ camp, onReloadCampaign }) {
         Linhas marcadas "Gestor" mostram só o OBJ/realizado pessoal dele (ex: atendimento direto), não o total da equipe. O total da equipe aparece no ranking de gestores.
       </div>
     </div>
+  );
+}
+
+/* ---------------- Visão por Produto (campanha inteira) ---------------- */
+function ProdutosTab({ camp }) {
+  const isPos = isPositivacaoCampaign(camp);
+  const stats = computeCampaignProdutoStats(camp);
+
+  if (!stats.produtos.length) {
+    return <div className="card"><div className="empty">Importe a base de OBJ para ver a visão por produto.</div></div>;
+  }
+
+  return (
+    <>
+      <div className="card">
+        <h2>Visão por Produto · {camp.label}</h2>
+        <h3>Soma de todas as {stats.pessoasCount} pessoas com OBJ carregado nesta campanha — como se fosse a visão de um gestor da campanha inteira.</h3>
+      </div>
+
+      <div className="stat-row">
+        {isPos ? (
+          <>
+            <div className="stat-box"><div className="label">OBJ de positivação (total)</div><div className="value">{formatNum(stats.totalObj)}</div></div>
+            <div className="stat-box"><div className="label">Positivados (total)</div><div className="value">{formatNum(stats.totalAchieved)}</div></div>
+            <div className="stat-box"><div className="label">Positivação única</div><div className="value">{formatNum(stats.positivacaoTotal)}</div></div>
+          </>
+        ) : (
+          <>
+            <div className="stat-box"><div className="label">OBJ total</div><div className="value">{formatBRL(stats.totalObj)}</div></div>
+            <div className="stat-box"><div className="label">Realizado total</div><div className="value">{formatBRL(stats.totalRealizado)}</div></div>
+          </>
+        )}
+        <div className="stat-box accent"><div className="label">Cobertura total</div><div className="value">{formatPct(stats.totalCob)}</div></div>
+        <div className="stat-box"><div className="label">Produtos 100%</div><div className="value">{stats.count100}/{stats.coreCount}</div></div>
+      </div>
+
+      <div className="card">
+        <h2>Produtos da campanha (soma de todos)</h2>
+        <div className="table-scroll-sticky">
+        <table>
+          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
+          <tbody>
+            {stats.produtos.map(p => {
+              if (p.isUnclassified) {
+                return (
+                  <tr key={p.key} style={{ fontStyle: 'italic', color: 'var(--muted)' }}>
+                    <td>{p.label}</td>
+                    <td className="num">—</td>
+                    <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
+                    <td className="num">—</td>
+                    <td><span className="pill pill-warn">Verificar dosagem</span></td>
+                  </tr>
+                );
+              }
+              let pillClass = 'pill-bad', pillLabel = 'Abaixo';
+              if (p.cob >= 100) { pillClass = 'pill-ok'; pillLabel = 'Atingido'; }
+              else if (p.cob >= 70) { pillClass = 'pill-warn'; pillLabel = 'Próximo'; }
+              return (
+                <tr key={p.key}>
+                  <td>{p.label}</td>
+                  <td className="num">{isPos ? formatNum(p.obj) : formatBRL(p.obj)}</td>
+                  <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
+                  <td className="num">{formatPct(p.cob)}</td>
+                  <td><span className={`pill ${pillClass}`}>{pillLabel}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </>
   );
 }
 
