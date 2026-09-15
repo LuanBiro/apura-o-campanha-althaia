@@ -130,7 +130,10 @@ export function computeGestorStats(camp, gestorNome) {
   const members = teamMap[gestorNome] || [];
   const memberStats = members.map(m => computeConsultorStats(camp, m));
 
-  const hasOwnAccount = !!camp.objData[gestorNome];
+  // "Atendimento direto" do gestor: desativado só na campanha Varejo (Farma),
+  // onde gestores não atendem cliente direto. Continua disponível nas demais.
+  const allowSelfAccount = camp.id !== 'varejo';
+  const hasOwnAccount = allowSelfAccount && !!camp.objData[gestorNome];
   if (hasOwnAccount) {
     const ownStats = computeConsultorStats(camp, gestorNome);
     ownStats.isSelfAccount = true;
