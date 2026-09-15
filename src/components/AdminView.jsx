@@ -1,286 +1,47 @@
-// src/components/AdminView.jsx
-import { useState, useRef, Fragment } from 'react';
-import { CAMPAIGNS } from '../lib/campaigns';
-import { readFileAsWorkbook, parseObjWorkbook, parseRealizadoWorkbook, parseRealizadoMDTR } from '../lib/parsers';
-import {
-  computeTeamMap, computeAllIndividualStats, computeCampaignProdutoStats, computeRanking, computeGestorRanking,
-  formatBRL, formatNum, formatPct, isPositivacaoCampaign
-} from '../lib/stats';
-import {
-  saveObjData, saveRealizadoData, updateCampaignConfig, clearCampaignData, resetUserPassword
-} from '../lib/supabaseClient';
+// src/components/GestorView.jsx
+import { useState, Fragment } from 'react';
+import { computeGestorStats, computeRanking, computeGestorRanking, formatBRL, formatNum, formatPct, isPositivacaoCampaign } from '../lib/stats';
 
-export default function AdminView({ campaigns, onReloadCampaign }) {
-  const [adminCampaignId, setAdminCampaignId] = useState(CAMPAIGNS[0].id);
-  const [adminTab, setAdminTab] = useState('importar');
-  const camp = campaigns[adminCampaignId];
+export default function GestorView({ camp, gestorNome }) {
+  const stats = computeGestorStats(camp, gestorNome);
+  const ranking = camp.rankingVisible ? computeRanking(camp) : null;
+  const gestorRanking = camp.rankingVisibleGestores ? computeGestorRanking(camp) : null;
+  const memberNames = stats.members;
+  const hasSelfAccount = stats.memberStats.some(ms => ms.isSelfAccount);
+  const [expandido, setExpandido] = useState(null);
+  const isPos = isPositivacaoCampaign(camp);
+  const rankingDisplay = ranking && camp.id === 'varejo' ? ranking.slice(0, 20) : ranking;
 
   return (
     <div className="wrap">
       <div className="card">
-        <h2>Painel do administrador</h2>
-        <h3>Gerencie cada campanha separadamente. Cada time compete só dentro do próprio ranking.</h3>
-        <div className="camp-tabs no-print">
-          {CAMPAIGNS.map(c => (
-            <button
-              key={c.id}
-              className={`camp-tab-btn ${adminCampaignId === c.id ? 'active' : ''}`}
-              onClick={() => setAdminCampaignId(c.id)}
-            >
-              {c.icon} {c.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>{camp.label}</h2>
-        <h3>{camp.campaignName || camp.label} {camp.updatedAt ? '· Atualizado em ' + new Date(camp.updatedAt).toLocaleString('pt-BR') : ''}</h3>
-      </div>
-
-      <div className="tabs no-print">
-        <button className={`tab-btn ${adminTab === 'importar' ? 'active' : ''}`} onClick={() => setAdminTab('importar')}>Importar dados</button>
-        <button className={`tab-btn ${adminTab === 'apuracoes' ? 'active' : ''}`} onClick={() => setAdminTab('apuracoes')}>Apurações (todas)</button>
-        <button className={`tab-btn ${adminTab === 'produtos' ? 'active' : ''}`} onClick={() => setAdminTab('produtos')}>Visão por Produto</button>
-        <button className={`tab-btn ${adminTab === 'ranking' ? 'active' : ''}`} onClick={() => setAdminTab('ranking')}>Ranking</button>
-        <button className={`tab-btn ${adminTab === 'config' ? 'active' : ''}`} onClick={() => setAdminTab('config')}>Configurações</button>
-      </div>
-
-      {adminTab === 'importar' && <ImportarTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'apuracoes' && <ApuracoesTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'produtos' && <ProdutosTab key={camp.id} camp={camp} />}
-      {adminTab === 'ranking' && <RankingTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-      {adminTab === 'config' && <ConfigTab key={camp.id} camp={camp} onReloadCampaign={onReloadCampaign} />}
-    </div>
-  );
-}
-
-/* ---------------- Importar ---------------- */
-function ImportarTab({ camp, onReloadCampaign }) {
-  const isMDTR = camp.id === 'geradores-demanda';
-  const isVarejo = camp.id === 'varejo';
-  const [objStatus, setObjStatus] = useState(null);
-  const [realStatus, setRealStatus] = useState(null);
-  const objInputRef = useRef(null);
-  const realInputRef = useRef(null);
-
-  const objCount = Object.keys(camp.objData).length;
-  const realCount = Object.keys(camp.realizadoData).length;
-
-  const handleObjFile = async (file) => {
-    setObjStatus({ type: 'hint', text: 'Lendo arquivo...' });
-    try {
-      const wb = await readFileAsWorkbook(file);
-      const { data, peopleFound, rowsFound } = parseObjWorkbook(wb);
-      if (!peopleFound) {
-        setObjStatus({ type: 'bad', text: 'Não encontrei blocos de OBJ nesse arquivo. Verifique o formato (nome + coluna "OBJ").' });
-        return;
-      }
-      await saveObjData(camp.id, data);
-      await onReloadCampaign(camp.id);
-      setObjStatus({ type: 'ok', text: `✓ ${peopleFound} pessoas, ${rowsFound} linhas de produto carregadas em ${camp.label}` });
-    } catch (err) {
-      console.error(err);
-      setObjStatus({ type: 'bad', text: `Erro ao salvar: ${err.message || err}` });
-    }
-  };
-
-  const handleRealFile = async (file) => {
-    setRealStatus({ type: 'hint', text: 'Lendo arquivo...' });
-    try {
-      const wb = await readFileAsWorkbook(file);
-      const result = isMDTR ? parseRealizadoMDTR(wb) : parseRealizadoWorkbook(wb);
-      if (result.error) {
-        setRealStatus({ type: 'bad', text: result.error });
-        return;
-      }
-      await saveRealizadoData(camp.id, result);
-      await onReloadCampaign(camp.id);
-      setRealStatus({ type: 'ok', text: `✓ ${Object.keys(result.data).length} pessoas, ${result.rowsFound} linhas processadas em ${camp.label}` });
-    } catch (err) {
-      console.error(err);
-      setRealStatus({ type: 'bad', text: `Erro ao salvar: ${err.message || err}` });
-    }
-  };
-
-  const objHint = isVarejo
-    ? 'Formato: nome no cabeçalho do bloco, produtos e valores de OBJ abaixo, encerrando em "TOTAL". Nesta campanha (Varejo), o valor de cada produto é uma QUANTIDADE DE CLIENTES (CNPJ Raiz) a serem positivados — não é R$.'
-    : 'Formato: nome no cabeçalho do bloco, produtos e valores de OBJ abaixo, encerrando em "TOTAL" — igual ao seu relatório atual.';
-
-  const realHint = isMDTR
-    ? 'Formato MDTR desta campanha: colunas PPP (valor realizado), Família e Ger. Demanda (código e nome juntos, ex: "111199 - DANILO DE AZEVEDO SANTIAGO"). Não tem coluna de gestor — essa campanha é sempre apurada por pessoa. O texto da Família precisa ser igual ao da planilha de OBJ.'
-    : `Colunas esperadas: Consultor Cod, Consultor Nome, Supervisor Nome, Família, Fat+OL${isVarejo ? ', CNPJ Raiz' : ''}. A Família deve vir já separada por dosagem quando necessário (ex: "ROSUVASTATINA 40MG" e "ROSUVASTATINA 5/10/20" como linhas distintas) — o texto precisa ser igual ao que está na planilha de OBJ. A coluna Supervisor Nome é usada para montar a visão consolidada de cada gestor automaticamente.${isVarejo ? ' A coluna CNPJ Raiz é obrigatória nesta campanha — é ela que conta quantos clientes distintos foram positivados por produto, base da cobertura aqui.' : ''}`;
-
-  return (
-    <>
-      <div className="card">
-        <h2>1. Planilha de OBJ (meta por pessoa)</h2>
-        <h3>{objHint}</h3>
-        <div className="dropzone" onClick={() => objInputRef.current.click()}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); if (e.dataTransfer.files[0]) handleObjFile(e.dataTransfer.files[0]); }}>
-          <input ref={objInputRef} type="file" accept=".xlsx,.xls,.csv"
-            onChange={e => e.target.files[0] && handleObjFile(e.target.files[0])} />
-          <div className="dz-title">Clique para selecionar ou arraste o arquivo de OBJ</div>
-          <div className="dz-sub">.xlsx ou .xls</div>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          {objStatus
-            ? <span className={objStatus.type === 'ok' ? 'status-ok' : objStatus.type === 'bad' ? 'status-bad' : 'hint'}>{objStatus.text}</span>
-            : (objCount > 0
-              ? <span className="status-ok">✓ {objCount} pessoas carregadas na base de OBJ</span>
-              : <span className="hint">Nenhuma base carregada ainda.</span>)}
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>2. Base de realizado {isMDTR ? '(MDTR)' : '(Qlik)'}</h2>
-        <h3>{realHint}</h3>
-        <div className="dropzone" onClick={() => realInputRef.current.click()}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); if (e.dataTransfer.files[0]) handleRealFile(e.dataTransfer.files[0]); }}>
-          <input ref={realInputRef} type="file" accept=".xlsx,.xls,.csv"
-            onChange={e => e.target.files[0] && handleRealFile(e.target.files[0])} />
-          <div className="dz-title">Clique para selecionar ou arraste a base de {isMDTR ? 'MDTR' : 'Qlik'}</div>
-          <div className="dz-sub">.xlsx ou .xls</div>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          {realStatus
-            ? <span className={realStatus.type === 'ok' ? 'status-ok' : realStatus.type === 'bad' ? 'status-bad' : 'hint'}>{realStatus.text}</span>
-            : (realCount > 0
-              ? <span className="status-ok">✓ {realCount} pessoas com dados de realizado</span>
-              : <span className="hint">Nenhuma base carregada ainda.</span>)}
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ---------------- Apurações ---------------- */
-function ApuracoesTab({ camp, onReloadCampaign }) {
-  const [filter, setFilter] = useState('');
-  const [expandido, setExpandido] = useState(null);
-  const all = computeAllIndividualStats(camp);
-  const teamMap = computeTeamMap(camp);
-  const f = filter.trim().toUpperCase();
-  const filtered = f ? all.filter(r => r.nome.indexOf(f) > -1) : all;
-  const isPos = isPositivacaoCampaign(camp);
-
-  if (!Object.keys(camp.objData).length) {
-    return <div className="card"><div className="empty">Importe a base de OBJ para ver as apurações por pessoa.</div></div>;
-  }
-
-  const handleResetSenha = async (nome) => {
-    if (!confirm(`Resetar a senha de ${nome}? Na próxima vez que ela entrar, vai poder criar uma senha nova.`)) return;
-    await resetUserPassword(camp.id, nome);
-    await onReloadCampaign(camp.id);
-  };
-
-  return (
-    <div className="card">
-      <h2>Todas as apurações · {camp.label}</h2>
-      <div className="hint" style={{ marginTop: -6 }}>Clique numa pessoa pra ver o detalhe por produto dela.</div>
-      <input type="text" className="search-box" placeholder="Buscar por nome..."
-        value={filter} onChange={e => setFilter(e.target.value)} />
-      <div className="table-scroll">
-      <table>
-        <thead>
-          <tr><th>Nome</th><th>Reporta para</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th><th>Acesso</th></tr>
-        </thead>
-        <tbody>
-          {filtered.length ? filtered.map(r => {
-            const isGestor = !!teamMap[r.nome];
-            const temSenha = !!camp.userAuth[r.nome];
-            const isOpen = expandido === r.nome;
-            return (
-              <Fragment key={r.nome}>
-                <tr onClick={() => setExpandido(isOpen ? null : r.nome)} style={{ cursor: 'pointer' }}>
-                  <td>{isOpen ? '▾' : '▸'} {r.nome}{isGestor && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Gestor</span>}</td>
-                  <td>{camp.supervisorMap[r.nome] || '—'}</td>
-                  <td className="num">{isPos ? formatNum(r.totalObj) : formatBRL(r.totalObj)}</td>
-                  <td className="num">{isPos ? formatNum(r.totalAchieved) : formatBRL(r.totalRealizado)}</td>
-                  <td className="num">{formatPct(r.totalCob)}</td>
-                  <td className="num">{r.count100}/{r.coreCount}</td>
-                  <td>
-                    {temSenha
-                      ? <button className="btn-link" style={{ padding: '2px 0' }} onClick={e => { e.stopPropagation(); handleResetSenha(r.nome); }}>Resetar senha</button>
-                      : <span className="hint" style={{ margin: 0 }}>Sem senha ainda</span>}
-                  </td>
-                </tr>
-                {isOpen && (
-                  <tr>
-                    <td colSpan="7" style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
-                      <div className="table-scroll-sticky">
-                      <table>
-                        <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th></tr></thead>
-                        <tbody>
-                          {r.produtos.length ? r.produtos.map(p => (
-                            <tr key={p.key} style={p.isUnclassified ? { fontStyle: 'italic', color: 'var(--muted)' } : undefined}>
-                              <td>{p.label}</td>
-                              <td className="num">{p.isUnclassified ? '—' : (isPos ? formatNum(p.obj) : formatBRL(p.obj))}</td>
-                              <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
-                              <td className="num">{p.isUnclassified ? '—' : formatPct(p.cob)}</td>
-                            </tr>
-                          )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
-                        </tbody>
-                      </table>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          }) : <tr><td colSpan="7" className="empty">Nenhum resultado.</td></tr>}
-        </tbody>
-      </table>
-      </div>
-      <div className="hint" style={{ marginTop: 10 }}>
-        Linhas marcadas "Gestor" mostram só o OBJ/realizado pessoal dele (ex: atendimento direto), não o total da equipe. O total da equipe aparece no ranking de gestores.
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Visão por Produto (campanha inteira) ---------------- */
-function ProdutosTab({ camp }) {
-  const isPos = isPositivacaoCampaign(camp);
-  const stats = computeCampaignProdutoStats(camp);
-
-  if (!stats.produtos.length) {
-    return <div className="card"><div className="empty">Importe a base de OBJ para ver a visão por produto.</div></div>;
-  }
-
-  return (
-    <>
-      <div className="card">
-        <h2>Visão por Produto · {camp.label}</h2>
-        <h3>Soma de todas as {stats.pessoasCount} pessoas com OBJ carregado nesta campanha — como se fosse a visão de um gestor da campanha inteira.</h3>
+        <h2>{gestorNome}</h2>
+        <h3>{camp.label} · Visão de equipe ({memberNames.length} {memberNames.length === 1 ? 'consultor' : 'consultores'})</h3>
       </div>
 
       <div className="stat-row">
         {isPos ? (
           <>
-            <div className="stat-box"><div className="label">OBJ de positivação (total)</div><div className="value">{formatNum(stats.totalObj)}</div></div>
-            <div className="stat-box"><div className="label">Positivados (total)</div><div className="value">{formatNum(stats.totalAchieved)}</div></div>
-            <div className="stat-box"><div className="label">Positivação única</div><div className="value">{formatNum(stats.positivacaoTotal)}</div></div>
+            <div className="stat-box"><div className="label">OBJ de positivação (equipe)</div><div className="value">{formatNum(stats.totalObj)}</div></div>
+            <div className="stat-box"><div className="label">Positivados (equipe)</div><div className="value">{formatNum(stats.totalAchieved)}</div></div>
           </>
         ) : (
           <>
-            <div className="stat-box"><div className="label">OBJ total</div><div className="value">{formatBRL(stats.totalObj)}</div></div>
-            <div className="stat-box"><div className="label">Realizado total</div><div className="value">{formatBRL(stats.totalRealizado)}</div></div>
+            <div className="stat-box"><div className="label">OBJ da equipe</div><div className="value">{formatBRL(stats.totalObj)}</div></div>
+            <div className="stat-box"><div className="label">Realizado da equipe</div><div className="value">{formatBRL(stats.totalRealizado)}</div></div>
           </>
         )}
-        <div className="stat-box accent"><div className="label">Cobertura total</div><div className="value">{formatPct(stats.totalCob)}</div></div>
+        <div className="stat-box accent"><div className="label">Cobertura da equipe</div><div className="value">{formatPct(stats.totalCob)}</div></div>
         <div className="stat-box"><div className="label">Produtos 100%</div><div className="value">{stats.count100}/{stats.coreCount}</div></div>
       </div>
 
       <div className="card">
-        <h2>Produtos da campanha (soma de todos)</h2>
+        <h2>Produtos da campanha (soma da equipe)</h2>
         <div className="table-scroll-sticky">
         <table>
           <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th><th>Status</th></tr></thead>
           <tbody>
-            {stats.produtos.map(p => {
+            {stats.produtos.length ? stats.produtos.map(p => {
               if (p.isUnclassified) {
                 return (
                   <tr key={p.key} style={{ fontStyle: 'italic', color: 'var(--muted)' }}>
@@ -304,131 +65,113 @@ function ProdutosTab({ camp }) {
                   <td><span className={`pill ${pillClass}`}>{pillLabel}</span></td>
                 </tr>
               );
-            })}
+            }) : <tr><td colSpan="5" className="empty">Nenhum produto encontrado para esta equipe.</td></tr>}
+          </tbody>
+        </table>
+        </div>
+        <div style={{ marginTop: 16 }} className="no-print">
+          <button className="btn btn-small btn-secondary" style={{ width: 'auto' }} onClick={() => window.print()}>
+            Imprimir / salvar PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Consultores da equipe</h2>
+        {hasSelfAccount && <h3>Inclui o atendimento direto do próprio gestor, já somado no total acima.</h3>}
+        <div className="hint" style={{ marginTop: -6 }}>Clique num consultor para ver o detalhe por família dele.</div>
+        <div className="table-scroll">
+        <table>
+          <thead><tr><th>Nome</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th><th className="num">Produtos 100%</th></tr></thead>
+          <tbody>
+            {stats.memberStats.length ? stats.memberStats.map(ms => {
+              const isOpen = expandido === ms.nome;
+              return (
+                <Fragment key={ms.nome}>
+                  <tr
+                    onClick={() => setExpandido(isOpen ? null : ms.nome)}
+                    style={{ cursor: 'pointer', ...(ms.isSelfAccount ? { background: 'var(--rosa)' } : {}) }}
+                  >
+                    <td>{isOpen ? '▾' : '▸'} {ms.nome}{ms.isSelfAccount && <span className="pill pill-warn" style={{ marginLeft: 8 }}>Atendimento direto</span>}</td>
+                    <td className="num">{isPos ? formatNum(ms.totalObj) : formatBRL(ms.totalObj)}</td>
+                    <td className="num">{isPos ? formatNum(ms.totalAchieved) : formatBRL(ms.totalRealizado)}</td>
+                    <td className="num">{formatPct(ms.totalCob)}</td>
+                    <td className="num">{ms.count100}/{ms.coreCount}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan="5" style={{ background: '#F7FAFA', padding: '10px 12px 16px' }}>
+                        <div className="table-scroll-sticky">
+                        <table>
+                          <thead><tr><th>Produto</th><th className="num">OBJ</th><th className="num">{isPos ? 'Positivados' : 'Realizado'}</th><th className="num">Cob. %</th></tr></thead>
+                          <tbody>
+                            {ms.produtos.length ? ms.produtos.map(p => (
+                              <tr key={p.key} style={p.isUnclassified ? { fontStyle: 'italic', color: 'var(--muted)' } : undefined}>
+                                <td>{p.label}</td>
+                                <td className="num">{p.isUnclassified ? '—' : (isPos ? formatNum(p.obj) : formatBRL(p.obj))}</td>
+                                <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
+                                <td className="num">{p.isUnclassified ? '—' : formatPct(p.cob)}</td>
+                              </tr>
+                            )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
+                          </tbody>
+                        </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            }) : <tr><td colSpan="5" className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
           </tbody>
         </table>
         </div>
       </div>
-    </>
-  );
-}
 
-/* ---------------- Ranking ---------------- */
-function RankingTab({ camp, onReloadCampaign }) {
-  const ranking = computeRanking(camp);
-  const gestorRanking = computeGestorRanking(camp);
-  const hasGestores = gestorRanking.length > 0;
-
-  if (!ranking.length && !gestorRanking.length) {
-    return <div className="card"><div className="empty">Sem dados de OBJ carregados ainda para {camp.label}.</div></div>;
-  }
-
-  const toggleConsultores = async (checked) => {
-    await updateCampaignConfig(camp.id, { rankingVisible: checked });
-    await onReloadCampaign(camp.id);
-  };
-  const toggleGestores = async (checked) => {
-    await updateCampaignConfig(camp.id, { rankingVisibleGestores: checked });
-    await onReloadCampaign(camp.id);
-  };
-
-  return (
-    <>
-      <div className="card">
-        <div className="toggle-row">
-          <div>
-            <strong>Ranking de consultores visível para o time</strong>
-            <div className="hint" style={{ margin: '2px 0 0' }}>Afeta só esta campanha. Gestores não entram nesse ranking.</div>
-          </div>
-          <label className="switch">
-            <input type="checkbox" checked={camp.rankingVisible} onChange={e => toggleConsultores(e.target.checked)} />
-            <span className="slider"></span>
-          </label>
-        </div>
-      </div>
-      <div className="card">
-        <h2>Prévia do ranking de consultores</h2>
-        <h3>Critério: produtos 100% da meta · desempate pela cobertura total</h3>
-        {ranking.length ? ranking.map((r, i) => (
-          <div key={r.nome} className={`rank-item ${i < 3 ? 'top3' : ''}`}>
-            <div className="rank-pos">{i + 1}</div>
-            <div style={{ flex: 1 }}>
-              <div className="rank-name">{r.nome}</div>
-              <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta</div>
-            </div>
-            <div className="rank-cov">{formatPct(r.totalCob)}</div>
-          </div>
-        )) : <div className="empty">Nenhum consultor (não-gestor) com OBJ carregado.</div>}
-      </div>
-
-      {hasGestores ? (
-        <>
-          <div className="card">
-            <div className="toggle-row">
-              <div>
-                <strong>Ranking de gestores visível para os gestores</strong>
-                <div className="hint" style={{ margin: '2px 0 0' }}>Compara o resultado consolidado de cada equipe. Independente do ranking de consultores.</div>
-              </div>
-              <label className="switch">
-                <input type="checkbox" checked={camp.rankingVisibleGestores} onChange={e => toggleGestores(e.target.checked)} />
-                <span className="slider"></span>
-              </label>
-            </div>
-          </div>
-          <div className="card">
-            <h2>Prévia do ranking de gestores</h2>
-            <h3>Critério: produtos 100% da meta da equipe · desempate pela cobertura total da equipe</h3>
-            {gestorRanking.map((r, i) => (
-              <div key={r.gestorNome} className={`rank-item ${i < 3 ? 'top3' : ''}`}>
-                <div className="rank-pos">{i + 1}</div>
+      {gestorRanking ? (
+        <div className="card no-print">
+          <h2>🏆 Ranking de Gestores · {camp.label}</h2>
+          <h3>Critério: quantidade de produtos com 100% da meta (equipe) · desempate pela cobertura total da equipe</h3>
+          {gestorRanking.map((r, i) => {
+            const pos = i + 1;
+            const isMe = r.gestorNome === gestorNome;
+            return (
+              <div key={r.gestorNome} className={`rank-item ${isMe ? 'me' : ''} ${pos <= 3 ? 'top3' : ''}`}>
+                <div className="rank-pos">{pos}</div>
                 <div style={{ flex: 1 }}>
-                  <div className="rank-name">{r.gestorNome}</div>
+                  <div className="rank-name">{r.gestorNome}{isMe ? ' (você)' : ''}</div>
                   <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta · {r.members.length} consultores</div>
                 </div>
                 <div className="rank-cov">{formatPct(r.totalCob)}</div>
               </div>
-            ))}
-          </div>
-        </>
+            );
+          })}
+        </div>
       ) : (
-        <div className="card"><div className="empty">Nenhum gestor identificado em {camp.label} ainda (precisa de Supervisor Nome na base).</div></div>
+        <div className="card no-print"><div className="empty">O ranking de gestores desta campanha ainda não foi liberado pelo administrador.</div></div>
       )}
-    </>
-  );
-}
 
-/* ---------------- Configurações ---------------- */
-function ConfigTab({ camp, onReloadCampaign }) {
-  const [campaignName, setCampaignName] = useState(camp.campaignName || camp.label);
-
-  const saveCampaignName = async () => {
-    await updateCampaignConfig(camp.id, { campaignName: campaignName.trim() || camp.label });
-    await onReloadCampaign(camp.id);
-  };
-
-  const resetData = async () => {
-    if (!confirm(`Tem certeza? Isso vai apagar OBJ, Realizado e senhas de acesso de ${camp.label}.`)) return;
-    await clearCampaignData(camp.id);
-    await onReloadCampaign(camp.id);
-  };
-
-  return (
-    <>
-      <div className="card">
-        <h2>Nome / período da campanha</h2>
-        <input type="text" value={campaignName} onChange={e => setCampaignName(e.target.value)}
-          placeholder="Ex: Grandes Contas - Julho 2026" />
-        <button className="btn btn-small" style={{ width: 'auto' }} onClick={saveCampaignName}>Salvar nome</button>
-      </div>
-      <div className="card">
-        <h2>Senha de administrador</h2>
-        <h3>Configurada via variável de ambiente no Vercel (VITE_ADMIN_PASSWORD). Para trocar, atualize a variável e faça um novo deploy — ou migre para Supabase Auth para gerenciar por aqui.</h3>
-      </div>
-      <div className="card">
-        <h2>Zona de risco</h2>
-        <div className="hint">Isso apaga OBJ, Realizado e as senhas de acesso do time carregados só de {camp.label} (não afeta as outras campanhas, nem a senha do admin ou o nome da campanha).</div>
-        <button className="btn btn-small btn-danger" style={{ width: 'auto' }} onClick={resetData}>Limpar dados de {camp.label}</button>
-      </div>
-    </>
+      {ranking ? (
+        <div className="card no-print">
+          <h2>Ranking de Consultores · {camp.label}</h2>
+          <h3>Sua equipe destacada · gestores não entram nesse ranking, competem no ranking de gestores acima{rankingDisplay.length < ranking.length ? ` · exibindo os ${rankingDisplay.length} primeiros de ${ranking.length}` : ''}</h3>
+          {rankingDisplay.map((r, i) => {
+            const pos = i + 1;
+            const isMyTeam = memberNames.indexOf(r.nome) > -1;
+            return (
+              <div key={r.nome} className={`rank-item ${isMyTeam ? 'me' : ''} ${pos <= 3 ? 'top3' : ''}`}>
+                <div className="rank-pos">{pos}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="rank-name">{r.nome}{isMyTeam ? ' (minha equipe)' : ''}</div>
+                  <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta</div>
+                </div>
+                <div className="rank-cov">{formatPct(r.totalCob)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card no-print"><div className="empty">O ranking de consultores desta campanha ainda não foi liberado pelo administrador.</div></div>
+      )}
+    </div>
   );
 }
