@@ -196,7 +196,10 @@ export function computeAllIndividualStats(camp) {
 // distinção de gestor/consultor) — uso administrativo, "visão de gestor geral".
 export function computeCampaignProdutoStats(camp) {
   const isPos = isPositivacaoCampaign(camp);
-  const all = computeAllIndividualStats(camp);
+  // No Varejo (Farma) gestor não tem atendimento direto: o resultado dele é só a soma da equipe,
+  // então o bloco de OBJ do próprio gestor não entra no total da campanha (mesma regra da visão do gestor).
+  const teamMap = computeTeamMap(camp);
+  const all = computeAllIndividualStats(camp).filter(r => !(isPos && teamMap[r.nome]));
 
   const produtoAgg = {};
   all.forEach(person => {
