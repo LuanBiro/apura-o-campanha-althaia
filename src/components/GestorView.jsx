@@ -116,4 +116,66 @@ export default function GestorView({ camp, gestorNome }) {
                                 <td className="num">{isPos ? formatNum(p.positivacao) : formatBRL(p.realizado)}</td>
                                 <td className="num">{p.isUnclassified ? '—' : formatPct(p.cob)}</td>
                               </tr>
-                            )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ
+                            )) : <tr><td colSpan="4" className="empty">Nenhum produto com OBJ carregado para essa pessoa.</td></tr>}
+                          </tbody>
+                        </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            }) : <tr><td colSpan="5" className="empty">Nenhum consultor com OBJ carregado para esta equipe.</td></tr>}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      {gestorRanking ? (
+        <div className="card no-print">
+          <h2>🏆 Ranking de Gestores · {camp.label}</h2>
+          <h3>Critério: quantidade de produtos com 100% da meta (equipe) · desempate pela cobertura total da equipe</h3>
+          {gestorRanking.map((r, i) => {
+            const pos = i + 1;
+            const isMe = r.gestorNome === gestorNome;
+            return (
+              <div key={r.gestorNome} className={`rank-item ${isMe ? 'me' : ''} ${pos <= 3 ? 'top3' : ''}`}>
+                <div className="rank-pos">{pos}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="rank-name">{r.gestorNome}{isMe ? ' (você)' : ''}</div>
+                  <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta · {r.members.length} consultores</div>
+                </div>
+                <div className="rank-cov">{formatPct(r.totalCob)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card no-print"><div className="empty">O ranking de gestores desta campanha ainda não foi liberado pelo administrador.</div></div>
+      )}
+
+      {ranking ? (
+        <div className="card no-print">
+          <h2>Ranking de Consultores · {camp.label}</h2>
+          <h3>Sua equipe destacada · gestores não entram nesse ranking, competem no ranking de gestores acima{rankingDisplay.length < ranking.length ? ` · exibindo os ${rankingDisplay.length} primeiros de ${ranking.length}` : ''}</h3>
+          {rankingDisplay.map((r, i) => {
+            const pos = i + 1;
+            const isMyTeam = memberNames.indexOf(r.nome) > -1;
+            return (
+              <div key={r.nome} className={`rank-item ${isMyTeam ? 'me' : ''} ${pos <= 3 ? 'top3' : ''}`}>
+                <div className="rank-pos">{pos}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="rank-name">{r.nome}{isMyTeam ? ' (minha equipe)' : ''}</div>
+                  <div className="rank-meta">{r.count100} de {r.coreCount} produtos na meta</div>
+                </div>
+                <div className="rank-cov">{formatPct(r.totalCob)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card no-print"><div className="empty">O ranking de consultores desta campanha ainda não foi liberado pelo administrador.</div></div>
+      )}
+    </div>
+  );
+}
