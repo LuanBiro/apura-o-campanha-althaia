@@ -1,5 +1,6 @@
 // src/components/ComercialView.jsx
 import { computeConsultorStats, computeRanking, formatBRL, formatNum, formatPct, isPositivacaoCampaign } from '../lib/stats';
+import { exportConsultorExcel } from '../lib/exportExcel';
 
 export default function ComercialView({ camp, nome }) {
   const stats = computeConsultorStats(camp, nome);
@@ -65,9 +66,12 @@ export default function ComercialView({ camp, nome }) {
           </tbody>
         </table>
         </div>
-        <div style={{ marginTop: 16 }} className="no-print">
-          <button className="btn btn-small btn-secondary" style={{ width: 'auto' }} onClick={() => window.print()}>
+        <div className="action-row no-print">
+          <button className="btn btn-small btn-secondary" onClick={() => window.print()}>
             Imprimir / salvar PDF
+          </button>
+          <button className="btn btn-small" onClick={() => exportConsultorExcel(camp, nome, stats)}>
+            Exportar Excel
           </button>
         </div>
       </div>
