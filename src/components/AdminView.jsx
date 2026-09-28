@@ -9,6 +9,7 @@ import {
 import {
   saveObjData, saveRealizadoData, updateCampaignConfig, clearCampaignData, resetUserPassword
 } from '../lib/supabaseClient';
+import { exportAdminCampaignExcel, exportAdminAllCampaignsExcel } from '../lib/exportExcel';
 
 export default function AdminView({ campaigns, onReloadCampaign }) {
   const [adminCampaignId, setAdminCampaignId] = useState(CAMPAIGNS[0].id);
@@ -31,11 +32,21 @@ export default function AdminView({ campaigns, onReloadCampaign }) {
             </button>
           ))}
         </div>
+        <div className="action-row no-print" style={{ marginTop: 4 }}>
+          <button className="btn btn-small" onClick={() => exportAdminAllCampaignsExcel(CAMPAIGNS.map(c => campaigns[c.id]))}>
+            Exportar TODAS as campanhas (Excel)
+          </button>
+        </div>
       </div>
 
       <div className="card">
         <h2>{camp.label}</h2>
         <h3>{camp.campaignName || camp.label} {camp.updatedAt ? '· Atualizado em ' + new Date(camp.updatedAt).toLocaleString('pt-BR') : ''}</h3>
+        <div className="action-row no-print" style={{ marginTop: 4 }}>
+          <button className="btn btn-small btn-secondary" onClick={() => exportAdminCampaignExcel(camp)}>
+            Exportar só {camp.label} (Excel)
+          </button>
+        </div>
       </div>
 
       <div className="tabs no-print">
